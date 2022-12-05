@@ -2,53 +2,29 @@ local M = {}
 local api = vim.api
 
 -- JABS main popup
-M.main_win = nil
-M.main_buf = nil
+--M.main_win = nil
+--M.main_buf = nil
 
 -- Buffer preview popup
 M.prev_win = nil
 M.prev_buf = nil
 
-M.bopen = {}
+--M.bopen = {}
 M.conf = {}
 M.win_conf = {}
 M.preview_conf = {}
 M.keymap_conf = {}
 
-M.openOptions = {
-    window = "b%s",
-    vsplit = "vert sb %s",
-    hsplit = "sb %s",
-}
-
 
 function M.setup(c)
-    local c = c or {}
+    c = c or {}
 
-    -- If preview opts table not provided in config
-    if not c.preview then
-        c.preview = {}
-    end
-
-    -- If highlight opts table not provided in config
-    if not c.highlight then
-        c.highlight = {}
-    end
-
-    -- If symbol opts table not provided in config
-    if not c.symbols then
-        c.symbols = {}
-    end
-
-    -- If keymap opts table not provided in config
-    if not c.keymap then
-        c.keymap = {}
-    end
-
-    -- If offset opts table not provided in config
-    if not c.offset then
-        c.offset = {}
-    end
+    -- create empty default tables for missing config tables
+    c.preview = c.preview or {}
+    c.highlight = c.highlight or {}
+    c.symbols = c.symbols or {}
+    c.keymap = c.keymap or {}
+    c.offset = c.offset or {}
 
     M.sort_mru = c.sort_mru or false
     M.split_filename = c.split_filename or false
@@ -259,7 +235,7 @@ end
 function M.updatePos()
     assert(type(M.conf.position) == 'table')
     assert(#M.conf.position == 2)
-    local position_x, position_y = unpack(M.conf.position)
+    local position_x, position_y = (table.unpack or unpack)(M.conf.position)
     local relative = M.win_conf.relative
 
     -- determine max width and height
@@ -317,7 +293,7 @@ function M.updatePos()
 end
 
 -- Open buffer from line
-function M.selBufNum(win, opt, count)
+function M.openSelectedBuffer(opt, count)
     local buf = nil
 
     -- Check for buffer number
@@ -343,41 +319,36 @@ function M.selBufNum(win, opt, count)
         return
     end
 
-    api.nvim_set_current_win(win)
-    vim.cmd(string.format(M.openOptions[opt], buf))
+    local openOptions = {
+        window = "b%s",
+        vsplit = "vert sb %s",
+        hsplit = "sb %s",
+    }
+
+    vim.cmd(string.format(openOptions[opt], buf))
 end
 
 -- Preview buffer
 function M.previewBuf()
+    do
+        return
+    end
     local buf = getBufferHandleFromLine(vim.api.nvim_get_current_line())
 
     -- Create the buffer for preview window
-    M.prev_win = api.nvim_open_win(
-        buf,
-        false,
-        vim.tbl_extend("force", M.preview_conf, {
-            win = M.main_win,
-        })
-    )
+    M.prev_win = api.nvim_open_win(buf, false,
+        vim.tbl_extend("force", M.preview_conf, { win = M.main_win, }))
+
     api.nvim_set_current_win(M.prev_win)
 
     -- Close preview with "q"
-    api.nvim_buf_set_keymap(
-        buf,
-        "n",
-        "q",
+    api.nvim_buf_set_keymap(buf, "n", "q",
         [[:lua require'jabs'.closePreviewBuf()<CR>]],
-        { nowait = true, noremap = true, silent = true }
-    )
+        { nowait = true, noremap = true, silent = true })
 
     -- Or close preview when cursor leaves window
-    api.nvim_create_autocmd({ "WinLeave" }, {
-        group = "JABS",
-        callback = function()
-            M.closePreviewBuf()
-            return true
-        end,
-    })
+    api.nvim_create_autocmd({ "WinLeave" }, { group = "JABS",
+        callback = function() M.closePreviewBuf() return true end})
 end
 
 function M.closePreviewBuf()
@@ -388,37 +359,29 @@ function M.closePreviewBuf()
 end
 
 -- Close buffer from line
-function M.closeBufNum(win)
+function M.closeSelectedBuffer()
     local buf = getBufferHandleFromLine(api.nvim_get_current_line())
 
-    local current_buf = api.nvim_win_get_buf(win)
-    local jabs_buf = api.nvim_get_current_buf()
+    -- check if file is open in a window
+    local buf_win_id = (table.unpack or unpack)(vim.fn.win_findbuf(buf))
+    if buf_win_id ~= nil then return end
 
-    if buf ~= current_buf then
-        vim.cmd(string.format("bd %s", buf))
-        local ln = api.nvim_win_get_cursor(0)[1]
-        table.remove(M.bopen, ln - 1)
-
-        M.refresh(jabs_buf)
-    else
-        api.nvim_notify("JABS: Cannot close current buffer!", 3, {})
-    end
-
-    vim.wo.number = false
-    vim.wo.relativenumber = false
+    vim.cmd("bd " .. buf)
+    M.refresh()
 end
 
--- Parse ls string
-function M.parseLs(buf)
+-- Parse ls string into buffer
+local function updateBufferFromLsLines(buf, lslines, buffer_width, sort_mru,
+                                       use_devicons)
 
-    for i, ls_line in ipairs(M.bopen) do
+    for i, ls_line in ipairs(lslines) do
         -- extract data from ls string
         local match_cmd = '(%d+)%s+([^%s]*)%s+"(.*)"'
-        if not M.sort_mru then
+        if not sort_mru then
             match_cmd = match_cmd .. '%s*line%s(%d+)'
         else
-            -- dummy so we get '' as result for linenr
-            match_cmd = match_cmd .. '(%d*)'
+            -- dummy that should never match so we get '' as result for linenr
+            match_cmd = match_cmd .. '(\n?)'
         end
 
         local buffer_handle, flags, filename, linenr =
@@ -426,7 +389,7 @@ function M.parseLs(buf)
 
         -- get symbol and icon
         local fn_symbol, fn_symbol_hl = '', nil
-        if M.use_devicons then
+        if use_devicons then
             fn_symbol, fn_symbol_hl = getFileSymbol(filename)
         end
         local icon, icon_hl = getBufferIcon(flags)
@@ -443,7 +406,7 @@ function M.parseLs(buf)
 
         -- determine filename field length and format filename
         local filename_max_length =
-            M.win_conf.width - #preLine - #postLine + extra_width
+            buffer_width - #preLine - #postLine + extra_width
         local filename_str = formatFilename(filename, filename_max_length)
 
         -- concat final line for the buffer
@@ -457,119 +420,82 @@ function M.parseLs(buf)
             api.nvim_buf_add_highlight(buf, -1, fn_symbol_hl, i, pos,
                                        pos + string.len(fn_symbol))
         end
-
     end
-end
-
--- Set floating window keymaps
-function M.setKeymaps(win, buf)
-    -- Basic window buffer configuration
-    api.nvim_buf_set_keymap(
-        buf,
-        "n",
-        M.keymap_conf.jump,
-        string.format([[:<C-U>lua require'jabs'.selBufNum(%s, 'window', vim.v.count)<CR>]], win),
-        { nowait = true, noremap = true, silent = true }
-    )
-    api.nvim_buf_set_keymap(
-        buf,
-        "n",
-        M.keymap_conf.h_split,
-        string.format([[:<C-U>lua require'jabs'.selBufNum(%s, 'hsplit', vim.v.count)<CR>]], win),
-        { nowait = true, noremap = true, silent = true }
-    )
-    api.nvim_buf_set_keymap(
-        buf,
-        "n",
-        M.keymap_conf.v_split,
-        string.format([[:<C-U>lua require'jabs'.selBufNum(%s, 'vsplit', vim.v.count)<CR>]], win),
-        { nowait = true, noremap = true, silent = true }
-    )
-    api.nvim_buf_set_keymap(
-        buf,
-        "n",
-        M.keymap_conf.close,
-        string.format([[:lua require'jabs'.closeBufNum(%s)<CR>]], win),
-        { nowait = true, noremap = true, silent = true }
-    )
-    api.nvim_buf_set_keymap(
-        buf,
-        "n",
-        M.keymap_conf.preview,
-        string.format([[:lua require'jabs'.previewBuf()<CR>]], win),
-        { nowait = true, noremap = true, silent = true }
-    )
-
-    -- Navigation keymaps
-    api.nvim_buf_set_keymap(
-        buf,
-        "n",
-        "q",
-        ':lua require"jabs".close()<CR>',
-        { nowait = true, noremap = true, silent = true }
-    )
-    api.nvim_buf_set_keymap(
-        buf,
-        "n",
-        "<Esc>",
-        ':lua require"jabs".close()<CR>',
-        { nowait = true, noremap = true, silent = true }
-    )
-    api.nvim_buf_set_keymap(buf, "n", "<Tab>", "j", { nowait = true, noremap = true, silent = true })
-    api.nvim_buf_set_keymap(buf, "n", "<S-Tab>", "k", { nowait = true, noremap = true, silent = true })
-
-    -- Prevent cursor from going to buffer title
-    vim.cmd(string.format("au CursorMoved <buffer=%s> if line(\".\") == 1 | call feedkeys('j', 'n') | endif", buf))
 end
 
 function M.close()
-    api.nvim_clear_autocmds {
-        group = "JABS",
-    }
-
-    -- If JABS is closed using :q the window and buffer indicator variables
-    -- are not reset, so we need to take this into account
-    -- if that's the case, the win is already closed and the M.main_win is
-    -- invalid but does not equeal nvim_get_current_win anymore.
-    if api.nvim_get_current_win () == M.main_win then
-        api.nvim_win_close(M.main_win, false)
-    end
-    api.nvim_buf_delete(M.main_buf, {})
-    M.main_win = nil
-    M.main_buf = nil
-
+    local window_handle = vim.api.nvim_get_current_win()
+    local buffer_handle = vim.api.nvim_get_current_buf()
+    vim.api.nvim_clear_autocmds({buffer = buffer_handle})
+    vim.api.nvim_win_close(window_handle, false)
+    vim.api.nvim_buf_delete(buffer_handle, {force = false})
 end
 
--- Set autocmds for JABS window
-function M.set_autocmds()
-    api.nvim_create_augroup("JABS", { clear = true })
+-- Set floating window keymaps
+local function setKeymaps()
+    local buf = vim.api.nvim_get_current_buf()
+    assert(vim.bo[buf]["filetype"] == "JABSwindow")
 
-    api.nvim_create_autocmd({ "WinEnter" }, {
-        group = "JABS",
-        callback = function()
-            if api.nvim_get_current_win() ~= M.main_win and M.prev_win == nil then
-                M.close()
-                return true
-            end
-        end,
-    })
+    -- Basic window buffer configuration
+    api.nvim_buf_set_keymap(buf, "n", M.keymap_conf.jump,
+        [[:<C-U>lua require'jabs'.openSelectedBuffer('window', vim.v.count)<CR>]],
+        { nowait = true, noremap = true, silent = true })
+    api.nvim_buf_set_keymap(buf, "n", M.keymap_conf.h_split,
+        [[:<C-U>lua require'jabs'.openSelectedBuffer('hsplit', vim.v.count)<CR>]],
+        { nowait = true, noremap = true, silent = true })
+    api.nvim_buf_set_keymap(buf, "n", M.keymap_conf.v_split,
+        [[:<C-U>lua require'jabs'.openSelectedBuffer('vsplit', vim.v.count)<CR>]],
+        { nowait = true, noremap = true, silent = true })
+    api.nvim_buf_set_keymap(buf, "n", M.keymap_conf.close,
+        [[:lua require'jabs'.closeSelectedBuffer()<CR>]],
+        { nowait = true, noremap = true, silent = true })
+    api.nvim_buf_set_keymap(buf, "n", M.keymap_conf.preview,
+        [[:lua require'jabs'.previewBuf()<CR>]],
+        { nowait = true, noremap = true, silent = true })
+
+    -- Navigation keymaps
+    api.nvim_buf_set_keymap(buf, "n", "q",
+        ':lua require"jabs".close()<CR>',
+        { nowait = true, noremap = true, silent = true })
+    api.nvim_buf_set_keymap(buf, "n", "<Esc>",
+        ':lua require"jabs".close()<CR>',
+        { nowait = true, noremap = true, silent = true })
+    api.nvim_buf_set_keymap(buf, "n", "<Tab>", "j",
+        { nowait = true, noremap = true, silent = true })
+    api.nvim_buf_set_keymap(buf, "n", "<S-Tab>", "k",
+        { nowait = true, noremap = true, silent = true })
+
+    api.nvim_create_autocmd({'WinLeave'}, {buffer=buf,
+                                           callback = function()
+                                               M.close(buf)
+                                           end})
 end
 
-function M.refresh(buf)
+function M.refresh()
+    buf = vim.api.nvim_get_current_buf()
+    local ls_result = api.nvim_exec(M.sort_mru and ":ls t" or ":ls", true)
+    local lslines = iter2array(string.gmatch(ls_result, "([^\n]+)"))
+
     local empty = {}
-    for _ = 1, #M.bopen + 1 do
+    for _ = 1, #lslines + 1 do
         empty[#empty + 1] = string.rep(" ", M.win_conf.width)
     end
 
     api.nvim_buf_set_option(buf, "modifiable", true)
     api.nvim_buf_set_lines(buf, 0, -1, false, empty)
 
-    M.parseLs(buf)
-
     -- Draw title
     local title = "Open buffers:"
     api.nvim_buf_set_text(buf, 0, 1, 0, title:len() + 1, { title })
     api.nvim_buf_add_highlight(buf, -1, "Folded", 0, 0, -1)
+
+    -- Prevent cursor from going to buffer title
+    vim.cmd(string.format(
+        "au CursorMoved <buffer=%s> if line(\".\") == 1 | call feedkeys('j', 'n') | endif",
+        buf))
+
+    updateBufferFromLsLines(buf, lslines, M.win_conf.width, M.sort_mru,
+                            M.use_devicons)
 
     -- Disable modifiable when done
     api.nvim_buf_set_option(buf, "modifiable", false)
@@ -577,29 +503,17 @@ end
 
 -- Floating buffer list
 function M.open()
-    local ls_result = api.nvim_exec(M.sort_mru and ":ls t" or ":ls", true)
-    M.bopen = iter2array(string.gmatch(ls_result, "([^\n]+)"))
-
-    if #M.bopen == 0 then
-        print("No buffer in list....")
+    local buf = vim.api.nvim_get_current_buf()
+    if vim.bo[buf]["filetype"] == "JABSwindow" then
+        M.close()
         return
     end
-
-    local back_win = api.nvim_get_current_win()
-    -- Create the buffer for the window
-    if not M.main_buf and not M.main_win then
-        M.updatePos()
-        M.main_buf = api.nvim_create_buf(false, true)
-        vim.bo[M.main_buf]["filetype"] = "JABSwindow"
-        M.main_win = api.nvim_open_win(M.main_buf, 1, M.win_conf)
-        if M.main_win ~= 0 then
-            M.refresh(M.main_buf)
-            M.setKeymaps(back_win, M.main_buf)
-            M.set_autocmds()
-        end
-    else
-        M.close()
-    end
+    M.updatePos()
+    local buf = api.nvim_create_buf(false, true)
+    vim.bo[buf]["filetype"] = "JABSwindow"
+    api.nvim_open_win(buf, 1, M.win_conf)
+    M.refresh()
+    setKeymaps()
 end
 
 return M
