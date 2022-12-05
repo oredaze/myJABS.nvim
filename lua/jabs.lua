@@ -1,12 +1,6 @@
-local M = {}
 local api = vim.api
 
 local config = {}
-
-M.conf = {}
-config.preview = {}
-
-config = {}
 
 local function setup(c)
     -- create empty default tables for missing config tables
@@ -68,6 +62,7 @@ local function setup(c)
     config.default_file_symbol = c.symbols.default_file or ""
     config.use_devicons = not (c.use_devicons == false)
 
+    -- TODO: rework highlight_map and symbols_map. Somehow get rid of them!
     -- Highlight names
     config.highlight_map = {
         ["%a"] = c.highlight.current or "StatusLine",
@@ -249,7 +244,6 @@ local function updateBufferFromLsLines(buf, ls_lines)
 end
 
 local function refresh()
-    local popup_width = vim.api.nvim_win_get_width(0)
     local buf = vim.api.nvim_get_current_buf()
     assert(isJABSPopup(buf))
 
@@ -273,42 +267,29 @@ local function refresh()
 end
 
 local function getPreviewConfig(win)
-    local pos_x, pos_y
-    if config.preview.position == "top" then
-        pos_x = config.popup.width / 2 - config.preview.width / 2
-        pos_y = -config.preview.height - 2
+    local pos_table = {
+        top = {    pos_x = (config.popup.width - config.preview.width) / 2,
+                   pos_y = -config.preview.height - 1 },
+        bottom = { pos_x = (config.popup.width - config.preview.width) / 2,
+                   pos_y = config.popup.height - 1},
+        right = {  pos_x = config.popup.width - 1,
+                   pos_y = (config.popup.height - config.preview.height) / 2},
+        left = {   pos_x = -config.preview.width - 1,
+                   pos_y = (config.popup.height - config.preview.height) / 2 }
+    }
 
-        if config.popup.border ~= "none" then
-            pos_y = pos_y - 1
-        end
-    elseif config.preview.position == "bottom" then
-        pos_x = config.popup.width / 2 - config.preview.width / 2
-        pos_y = config.popup.height
-
-        if config.popup.border ~= "none" then
-            pos_y = pos_y + 1
-        end
-    elseif config.preview.position == "right" then
-        pos_x = config.popup.width
-        pos_y = config.popup.height / 2 - config.preview.height / 2
-
-        if config.popup.border ~= "none" then
-            pos_x = pos_x + 1
-        end
-    elseif config.preview.position == "left" then
-        pos_x = -config.preview.width
-        pos_y = config.popup.height / 2 - config.preview.height / 2
-
-        if config.popup.border ~= "none" then
-            pos_x = pos_x - 1
-        end
+    if config.popup.border == 'none' then
+        pos_table['top']['pos_y'] = pos_table['top']['pos_y'] - 1
+        pos_table['bottom']['pos_y'] = pos_table['bottom']['pos_y'] + 1
+        pos_table['right']['pos_x'] = pos_table['right']['pos_x'] + 1
+        pos_table['left']['pos_x'] = pos_table['left']['pos_x'] - 1
     end
 
     return {
         width = config.preview.width,
         height = config.preview.height,
-        row = pos_y,
-        col = pos_x,
+        row = pos_table[config.preview.position]['pos_y'],
+        col = pos_table[config.preview.position]['pos_x'],
         style = config.preview.style,
         border = config.preview.border,
         anchor = "NW",
@@ -321,7 +302,7 @@ local function openPreview()
     local buf = getBufferHandleFromLine(vim.api.nvim_get_current_line())
     local win = vim.api.nvim_get_current_win()
 
-    prev_win = vim.api.nvim_open_win(buf, false, getPreviewConfig(win))
+    local prev_win = vim.api.nvim_open_win(buf, false, getPreviewConfig(win))
 
     vim.api.nvim_win_set_var(prev_win, "isJABSWindow", true)
     vim.api.nvim_set_current_win(prev_win)
@@ -434,40 +415,29 @@ local function getPopupConfig()
         size_y = size_y > max_height and max_height or config.popup.height
     end
 
-    local pos_x, pos_y
-    if relative == 'cursor' then
-        -- calculate position x
-            if position_x == 'center' then pos_x = -size_x / 2
-        elseif position_x == 'right'  then pos_x = 0 + config.popup.left_offset
-        elseif position_x == 'left'   then pos_x = -size_x - config.popup.right_offset
-        else assert(false)
-        end
-        -- calculate position y
-            if position_y == 'center' then pos_y = -size_y / 2
-        elseif position_y == 'bottom' then pos_y = 0 + config.popup.top_offset
-        elseif position_y == 'top'    then pos_y = -size_y - config.popup.bottom_offset
-        else assert(false)
-        end
-    else
-        -- calculate position x
-            if position_x == 'center' then pos_x = max_width / 2 - size_x / 2
-        elseif position_x == 'right'  then pos_x = max_width - size_x - config.popup.right_offset
-        elseif position_x == 'left'   then pos_x = 0 + config.popup.left_offset
-        else assert(false)
-        end
-
-        -- calculate position y
-            if position_y == 'center' then pos_y = max_height / 2 - size_y / 2
-        elseif position_y == 'bottom' then pos_y = max_height - size_y - config.popup.bottom_offset
-        elseif position_y == 'top'    then pos_y = 0 + config.popup.top_offset
-        end
-    end
+    local pos_table = {
+        cursor = { pos_x = { center = -size_x / 2,
+                             right  = 0 + config.popup.left_offset,
+                             left   = -size_x - config.popup.right_offset, },
+                   pos_y = { center = -size_y / 2,
+                             bottom = 0 + config.popup.top_offset,
+                             top    = -size_y - config.popup.bottom_offset, },
+        },
+        win = { pos_x = { center = max_width / 2 - size_x / 2,
+                          right  = max_width - size_x - config.popup.right_offset,
+                          left   = 0 + config.popup.left_offset, },
+                pos_y = { center = max_height / 2 - size_y / 2,
+                          bottom = max_height - size_y - config.popup.bottom_offset,
+                          top    = 0 + config.popup.top_offset, },
+        },
+    }
+    pos_table.editor = pos_table.win
 
     return {
         width = size_x,
         height = size_y,
-        row = pos_y,
-        col = pos_x,
+        row = pos_table[relative]["pos_y"][position_y],
+        col = pos_table[relative]["pos_x"][position_x],
         style = config.popup.style,
         border = config.popup.border,
         anchor = "NW",
