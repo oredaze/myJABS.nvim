@@ -51,12 +51,15 @@ local function setup(c)
         h_split = c.keymap.h_split or "s",
         v_split = c.keymap.v_split or "v",
         preview = c.keymap.preview or "P",
+        toggle_unlisted = c.keymap.toggle_unlisted or "u"
     }
 
     -- sort_mru and split_filename
     config.sort_mru = c.sort_mru or false
     config.split_filename = c.split_filename or false
     config.split_filename_path_width = c.split_filename_path_width or 0
+
+    config.show_unlisted = c.show_unlisted or false
 
     -- icon / symbol stuff
     config.default_file_symbol = c.symbols.default_file or ""
@@ -68,6 +71,7 @@ local function setup(c)
         split = c.highlight.split or "StatusLine",
         alternate = c.highlight.alternate or "WarningMsg",
         hidden = c.highlight.hidden or "ModeMsg",
+        unlisted = c.highlight.unlisted or "ErrorMsg",
     }
 
     -- Buffer symbols
@@ -141,7 +145,7 @@ local function getFileSymbol(filename)
     return symbol, hl
 end
 
-local function getBufferSymbol(flags)
+local function getBufferSymbol(flags, unlisted)
     --[[ TODO: known bug: we can't "mark" the alternate buffer because we call
                ls after the JABS window and buffer became the current buffer.
                Therefor the JABS buffer is always the current buffer, the
@@ -172,9 +176,11 @@ local function getBufferSymbol(flags)
     end
 
     local function getHighlight()
-        --if string.match(flags, '%') then
+        if unlisted then
+            return config.highlight.unlisted
+        --elseif string.match(flags, '%') then
         --    return config.highlight.current
-        if string.match(flags, '#') then
+        elseif string.match(flags, '#') then
             return config.highlight.current
         elseif string.match(flags, 'a') then
             return config.highlight.split
@@ -222,13 +228,19 @@ local function formatFilename(filename, filename_max_length)
 end
 
 local function updateBufferFromLsLines(buf)
-    local ls_result = api.nvim_exec(config.sort_mru and ":ls t" or ":ls", true)
+    -- build ls command
+    local ls_cmd = ":ls"
+    if config.show_unlisted then ls_cmd = ls_cmd .. "!" end
+    if config.sort_mru then  ls_cmd = ls_cmd .. " t" end
+    --execute ls command and split by '\n'
+    local ls_result = api.nvim_exec(ls_cmd, true)
     local ls_lines = iter2array(string.gmatch(ls_result, "([^\n]+)"))
 
 
-    for i, ls_line in ipairs(ls_lines) do
+    local i = 1
+    for _, ls_line in ipairs(ls_lines) do
         -- extract data from ls string
-        local match_cmd = '(%d+)%s+([^%s]*)%s+"(.*)"'
+        local match_cmd = '(%d+)(u?)%s*([^%s]*)%s+"(.*)"'
         if not config.sort_mru then
             match_cmd = match_cmd .. '%s*line%s(%d+)'
         else
@@ -236,12 +248,19 @@ local function updateBufferFromLsLines(buf)
             match_cmd = match_cmd .. '(\n?)'
         end
 
-        local buffer_handle, flags, filename, linenr =
+        local buffer_handle, unlisted, flags, filename, linenr =
             string.match(ls_line, match_cmd)
+
+        -- all "valid unlisted buffer" have no flags set!
+        -- this seams to make the difference to "invalid buffers" (hidden
+        -- buffers from plugins)
+        if unlisted == 'u' and flags ~= '' then
+            goto continue
+        end
 
         -- get file and buffer symbol
         local fn_symbol, fn_symbol_hl = getFileSymbol(filename)
-        local buf_symbol, buf_symbol_hl = getBufferSymbol(flags)
+        local buf_symbol, buf_symbol_hl = getBufferSymbol(flags, unlisted == 'u')
 
         -- format preLine and postLine
         local preLine =
@@ -265,6 +284,9 @@ local function updateBufferFromLsLines(buf)
             api.nvim_buf_add_highlight(buf, -1, fn_symbol_hl, i, pos,
                                        pos + string.len(fn_symbol) - 1)
         end
+
+        i = i + 1
+        ::continue::
     end
 end
 
@@ -348,9 +370,9 @@ local function openSelectedBuffer(opt)
     closePopup()
 
     local openOptions = {
-        window = "b%s",
-        vsplit = "vert sb %s",
-        hsplit = "sb %s",
+        window = "e #%s",
+        vsplit = "vs #%s",
+        hsplit = "sp #%s",
     }
 
     vim.cmd(string.format(openOptions[opt], buf))
@@ -381,6 +403,11 @@ local function setKeymaps(buf)
         end
     end
 
+    local function toggleUnlisted()
+        config.show_unlisted = not config.show_unlisted
+        refresh()
+    end
+
     -- Basic window buffer configuration
     buf_keymap(config.keymap.jump,
                function() openSelectedBuffer("window") end)
@@ -390,6 +417,7 @@ local function setKeymaps(buf)
                function() openSelectedBuffer("vsplit") end)
     buf_keymap(config.keymap.delete, deleteSelectedBuffer)
     buf_keymap(config.keymap.preview, openPreview)
+    buf_keymap(config.keymap.toggle_unlisted, toggleUnlisted)
 
     -- Navigation keymaps
     buf_keymap("q", closePopup)
@@ -475,6 +503,8 @@ local function open()
         closePopup()
         return
     end
+
+    config.show_unlisted = false
 
     -- init jabs popup buffer
     local buf = api.nvim_create_buf(false, true)
