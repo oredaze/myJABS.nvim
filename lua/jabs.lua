@@ -62,29 +62,24 @@ local function setup(c)
     config.default_file_symbol = c.symbols.default_file or ""
     config.use_devicons = not (c.use_devicons == false)
 
-    -- TODO: rework highlight_map and symbols_map. Somehow get rid of them!
     -- Highlight names
-    config.highlight_map = {
-        ["%a"] = c.highlight.current or "StatusLine",
-        ["#a"] = c.highlight.split or "StatusLine",
-        ["a"] = c.highlight.split or "StatusLine",
-        ["#h"] = c.highlight.alternate or "WarningMsg",
-        ["#"] = c.highlight.alternate or "WarningMsg",
-        ["h"] = c.highlight.hidden or "ModeMsg",
+    config.highlight = {
+        current = c.highlight.current or "StatusLine",
+        split = c.highlight.split or "StatusLine",
+        alternate = c.highlight.alternate or "WarningMsg",
+        hidden = c.highlight.hidden or "ModeMsg",
     }
 
-    -- Buffer info symbols
-    config.symbols_map = {
-        ["%a"] = c.symbols.current or "",
-        ["#a"] = c.symbols.split or "",
-        ["a"] = c.symbols.split or "",
-        ["#h"] = c.symbols.alternate or "",
-        ["h"] = c.symbols.hidden or "﬘",
-        ["-"] = c.symbols.locked or "",
-        ["="] = c.symbols.ro or "",
-        ["+"] = c.symbols.edited or "",
-        ["R"] = c.symbols.terminal or "",
-        ["F"] = c.symbols.terminal or "",
+    -- Buffer symbols
+    config.symbols = {
+        current = c.symbols.current or "",
+        split = c.symbols.split or "",
+        alternate = c.symbols.alternate or "",
+        hidden = c.symbols.hidden or "﬘",
+        locked = c.symbols.locked or "",
+        ro = c.symbols.ro or "",
+        edited = c.symbols.edited or "",
+        terminal = c.symbols.terminal or "",
     }
 end
 
@@ -96,12 +91,17 @@ local function iter2array(...)
     return arr
 end
 
+local function getUnicodeStringWidth(str)
+    local extra_width = #str - #string.gsub(str, '[\128-\191]', '')
+    return string.len(str) - extra_width
+end
+
 local function isJABSPopup(buf)
     return vim.b[buf].isJABSBuffer == true
 end
 
 local function getBufferHandleFromLine(line)
-    local handle = iter2array(string.gmatch(line, "[^%s]+"))[2]
+    local handle = string.match(line, "^[^%d]*(%d+)")
     return assert(tonumber(handle))
 end
 
@@ -128,13 +128,11 @@ local function cleanUp()
 end
 
 local function getFileSymbol(filename)
-    local devicons = pcall(require, "nvim-web-devicons")
-    if not devicons then
+    if not config.use_devicons or not pcall(require, "nvim-web-devicons") then
         return '', nil
     end
 
     local ext =  string.match(filename, "%.(.*)$")
-
     local symbol, hl = require("nvim-web-devicons").get_icon(filename, ext)
     if not symbol then
         symbol = config.default_file_symbol
@@ -143,18 +141,49 @@ local function getFileSymbol(filename)
     return symbol, hl
 end
 
-local function getBufferIcon(flags)
-    flags = flags ~= '' and flags or 'h'
+local function getBufferSymbol(flags)
+    --[[ TODO: known bug: we can't "mark" the alternate buffer because we call
+               ls after the JABS window and buffer became the current buffer.
+               Therefor the JABS buffer is always the current buffer, the
+               previously current buffer became the alternate buffer and the
+               previously alternate buffer has no marking anymore.......
+               BUT: I don't want to call ls in open (before we create the
+               window because that would cause a lot of other "issues"
+               For now that's the way it is, maybe there's another solution
+               someone can come up with......]]
+    local function getSymbol()
+        --if string.match(flags, '%%') then
+        --    return config.symbols.current
+        if string.match(flags, '#') then
+            return config.symbols.current
+        elseif string.match(flags, 'a') then
+            return config.symbols.split
+        elseif string.match(flags, '[RF]') then
+            return config.symbols.terminal
+        elseif string.match(flags, '-') then
+            return config.symbols.locked
+        elseif string.match(flags, '=') then
+            return config.symbols.ro
+        elseif string.match(flags, '+') then
+            return config.symbols.edited
+        else
+            return config.symbols.hidden
+        end
+    end
 
-    -- if flags do not end with a or h extract trailing char (-> -, =, +, R, F)
-    local iconFlag = string.match(flags, "([^ah])$")
-    iconFlag = iconFlag or flags
+    local function getHighlight()
+        --if string.match(flags, '%') then
+        --    return config.highlight.current
+        if string.match(flags, '#') then
+            return config.highlight.current
+        elseif string.match(flags, 'a') then
+            return config.highlight.split
+        else
+            return config.highlight.hidden
+        end
+    end
 
-    -- extract '#' or '.*[ah]'
-    local hlFlag = string.match(flags, "(.[ah#])")
-    hlFlag = hlFlag or flags
-
-    return config.symbols_map[iconFlag], config.highlight_map[hlFlag]
+    return getSymbol(), getHighlight()
 end
 
 local function formatFilename(filename, filename_max_length)
@@ -175,7 +204,8 @@ local function formatFilename(filename, filename_max_length)
         return string.match(fn, "(.-)([^\\/]-%.?[^%.\\/]*)$")
     end
 
-    filename = string.gsub(filename, "term://", "Terminal: ", 1)
+    -- make termial filename nicer
+    filename = string.gsub(filename, "^term://(.*)//.*$", "Terminal: %1", 1)
 
     if config.split_filename then
         local path, file = split_filename(filename)
@@ -209,27 +239,19 @@ local function updateBufferFromLsLines(buf)
         local buffer_handle, flags, filename, linenr =
             string.match(ls_line, match_cmd)
 
-        -- get symbol and icon
-        local fn_symbol, fn_symbol_hl = '', nil
-        if config.use_devicons then
-            fn_symbol, fn_symbol_hl = getFileSymbol(filename)
-        end
-        local icon, icon_hl = getBufferIcon(flags)
+        -- get file and buffer symbol
+        local fn_symbol, fn_symbol_hl = getFileSymbol(filename)
+        local buf_symbol, buf_symbol_hl = getBufferSymbol(flags)
 
         -- format preLine and postLine
         local preLine =
-            string.format(" %s %3d %s ", icon, buffer_handle, fn_symbol)
+            string.format(" %s %3d %s ", buf_symbol, buffer_handle, fn_symbol)
         local postLine = linenr ~= '' and string.format("  %3d ", linenr) or ''
-
-        -- some symbols magic, they increase the string.len by more
-        -- than 1 and this is a magic trick to get the extra width
-        local extra_width = #preLine + #postLine -
-            #string.gsub(preLine .. postLine, '[\128-\191]', '')
 
         -- determine filename field length and format filename
         local buffer_width = api.nvim_win_get_width(0)
         local filename_max_length =
-            buffer_width - #preLine - #postLine + extra_width
+            buffer_width - getUnicodeStringWidth(preLine .. postLine)
         local filename_str = formatFilename(filename, filename_max_length)
 
         -- concat final line for the buffer
@@ -237,16 +259,19 @@ local function updateBufferFromLsLines(buf)
 
         -- set line and highligh
         api.nvim_buf_set_lines(buf, i, i, true, { line })
-        api.nvim_buf_add_highlight(buf, -1, icon_hl, i, 0, -1)
+        api.nvim_buf_add_highlight(buf, -1, buf_symbol_hl, i, 0, -1)
         if fn_symbol_hl and fn_symbol ~= '' then
             local pos = string.find(line, fn_symbol, 1, true)
             api.nvim_buf_add_highlight(buf, -1, fn_symbol_hl, i, pos,
-                                       pos + string.len(fn_symbol))
+                                       pos + string.len(fn_symbol) - 1)
         end
     end
 end
 
 local function refresh()
+    --save cursor position
+    local cursor_pos = vim.fn.getpos('.')
+
     local buf = api.nvim_get_current_buf()
     assert(isJABSPopup(buf))
 
@@ -259,9 +284,11 @@ local function refresh()
 
     -- Disable modifiable when done
     api.nvim_buf_set_option(buf, "modifiable", false)
+    -- restore cursor position
+    vim.fn.setpos('.', cursor_pos)
 end
 
-local function getPreviewConfig(win)
+local function getPreviewConfig()
     local pos_table = {
         top = {    pos_x = (config.popup.width - config.preview.width) / 2,
                    pos_y = -config.preview.height - 1 },
@@ -289,29 +316,29 @@ local function getPreviewConfig(win)
         border = config.preview.border,
         anchor = "NW",
         relative = "win",
-        win = win
+        win = api.nvim_get_current_win()
     }
 end
 
 local function openPreview()
     local buf = getBufferHandleFromLine(api.nvim_get_current_line())
-    local win = api.nvim_get_current_win()
 
-    local prev_win = api.nvim_open_win(buf, false, getPreviewConfig(win))
+    local prev_win = api.nvim_open_win(buf, false, getPreviewConfig())
 
     api.nvim_win_set_var(prev_win, "isJABSWindow", true)
     api.nvim_set_current_win(prev_win)
 
     -- close preview when cursor leaves window
-    local fn_callback = function() api.nvim_win_close(prev_win, false) end
+    local fn_callback = function() api.nvim_win_close(prev_win, false) return true end
     local options = {group = "JABSAutoCmds", buffer = buf, callback = fn_callback}
     api.nvim_create_autocmd({ "WinLeave" }, options)
 end
 
 local function openSelectedBuffer(opt)
-    local selected_buf = getBufferHandleFromLine(api.nvim_get_current_line())
-
-    local buf = vim.v.count ~= 0 and vim.v.count or selected_buf
+    local buf = vim.v.count
+    if buf == 0 then
+        buf = getBufferHandleFromLine(api.nvim_get_current_line())
+    end
 
     if vim.fn.bufexists(buf) == 0 then
         print("Buffer number not found!")
