@@ -145,21 +145,12 @@ local function getFileSymbol(filename)
     return symbol, hl
 end
 
-local function getBufferSymbol(flags, unlisted)
-    --[[ TODO: known bug: we can't "mark" the alternate buffer because we call
-               ls after the JABS window and buffer became the current buffer.
-               Therefor the JABS buffer is always the current buffer, the
-               previously current buffer became the alternate buffer and the
-               previously alternate buffer has no marking anymore.......
-               BUT: I don't want to call ls in open (before we create the
-               window because that would cause a lot of other "issues"
-               For now that's the way it is, maybe there's another solution
-               someone can come up with......]]
+local function getBufferSymbol(flags)
     local function getSymbol()
-        --if string.match(flags, '%%') then
-        --    return config.symbols.current
-        if string.match(flags, '#') then
+        if string.match(flags, '%%') then
             return config.symbols.current
+        elseif string.match(flags, '#') then
+            return config.symbols.alternate
         elseif string.match(flags, 'a') then
             return config.symbols.split
         elseif string.match(flags, '[RF]') then
@@ -176,12 +167,12 @@ local function getBufferSymbol(flags, unlisted)
     end
 
     local function getHighlight()
-        if unlisted then
-            return config.highlight.unlisted
-        --elseif string.match(flags, '%') then
-        --    return config.highlight.current
-        elseif string.match(flags, '#') then
+        if string.match(flags, '%%') then
             return config.highlight.current
+        elseif string.match(flags, '#') then
+            return config.highlight.alternate
+        elseif string.match(flags, 'u') then
+            return config.highlight.unlisted
         elseif string.match(flags, 'a') then
             return config.highlight.split
         else
@@ -232,8 +223,14 @@ local function updateBufferFromLsLines(buf)
     local ls_cmd = ":ls"
     if config.show_unlisted then ls_cmd = ls_cmd .. "!" end
     if config.sort_mru then  ls_cmd = ls_cmd .. " t" end
+
     --execute ls command and split by '\n'
-    local ls_result = api.nvim_exec(ls_cmd, true)
+    --this is a little tricky, because we need to call the ls command from the
+    --previous window (not the JABS window) to get the right results
+    --that's what this block does using some vim builtin functions
+    local winid = vim.fn.win_getid(vim.fn.winnr("#"))
+    local ls_call = function () return api.nvim_exec(ls_cmd, true) end
+    local ls_result = vim.api.nvim_win_call(winid,ls_call)
     local ls_lines = iter2array(string.gmatch(ls_result, "([^\n]+)"))
 
 
@@ -260,7 +257,7 @@ local function updateBufferFromLsLines(buf)
 
         -- get file and buffer symbol
         local fn_symbol, fn_symbol_hl = getFileSymbol(filename)
-        local buf_symbol, buf_symbol_hl = getBufferSymbol(flags, unlisted == 'u')
+        local buf_symbol, buf_symbol_hl = getBufferSymbol(flags .. unlisted)
 
         -- format preLine and postLine
         local preLine =
