@@ -191,7 +191,10 @@ local function formatFilename(filename, filename_max_length)
     return string.format("%-" .. filename_max_length .. "s", filename)
 end
 
-local function updateBufferFromLsLines(buf, ls_lines)
+local function updateBufferFromLsLines(buf)
+    local ls_result = api.nvim_exec(config.sort_mru and ":ls t" or ":ls", true)
+    local ls_lines = iter2array(string.gmatch(ls_result, "([^\n]+)"))
+
 
     for i, ls_line in ipairs(ls_lines) do
         -- extract data from ls string
@@ -247,20 +250,12 @@ local function refresh()
     local buf = api.nvim_get_current_buf()
     assert(isJABSPopup(buf))
 
-    local ls_result = api.nvim_exec(config.sort_mru and ":ls t" or ":ls", true)
-    local ls_lines = iter2array(string.gmatch(ls_result, "([^\n]+)"))
-
     -- init buffer
     api.nvim_buf_set_option(buf, "modifiable", true)
     api.nvim_buf_set_lines(buf, 0, -1, false, {'Open Buffers:'})
     api.nvim_buf_add_highlight(buf, -1, "Folded", 0, 0, -1)
 
-    -- Prevent cursor from going to buffer title
-    vim.cmd(string.format(
-        "au CursorMoved <buffer=%s> if line(\".\") == 1 | call feedkeys('j', 'n') | endif",
-        buf))
-
-    updateBufferFromLsLines(buf, ls_lines)
+    updateBufferFromLsLines(buf)
 
     -- Disable modifiable when done
     api.nvim_buf_set_option(buf, "modifiable", false)
@@ -459,8 +454,14 @@ local function open()
     api.nvim_buf_set_name(buf, "expJABS")
     vim.b[buf].isJABSBuffer = true
 
+    -- Prevent cursor from going to buffer title
+    vim.cmd(string.format(
+        "au CursorMoved <buffer=%s> if line(\".\") == 1 | call feedkeys('j', 'n') | endif",
+        buf))
+
     win = api.nvim_open_win(buf, true, getPopupConfig())
     api.nvim_win_set_var(win, "isJABSWindow", true)
+
     refresh()
     setKeymaps(buf)
 end
