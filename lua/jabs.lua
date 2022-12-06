@@ -106,23 +106,23 @@ local function getBufferHandleFromLine(line)
 end
 
 local function closePopup()
-    local window_handle = vim.api.nvim_get_current_win()
+    local window_handle = api.nvim_get_current_win()
     assert(vim.w[window_handle].isJABSWindow)
-    vim.api.nvim_win_close(window_handle, false)
+    api.nvim_win_close(window_handle, false)
     -- all the cleanup will be done by cleanUp which gets
     -- call by the WinClosed event
 end
 
 local function cleanUp()
-    vim.api.nvim_clear_autocmds({group = "JABSAutoCmds"})
-    for _, win in ipairs(vim.api.nvim_list_wins()) do
+    api.nvim_clear_autocmds({group = "JABSAutoCmds"})
+    for _, win in ipairs(api.nvim_list_wins()) do
         if vim.w[win].isJABSWindow == true then
-            vim.api.nvim_win_close(win, false)
+            api.nvim_win_close(win, false)
         end
     end
-    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    for _, buf in ipairs(api.nvim_list_bufs()) do
         if vim.b[buf].isJABSBuffer == true then
-            vim.api.nvim_buf_delete(buf, {force = false})
+            api.nvim_buf_delete(buf, {force = false})
         end
     end
 end
@@ -224,7 +224,7 @@ local function updateBufferFromLsLines(buf, ls_lines)
             #string.gsub(preLine .. postLine, '[\128-\191]', '')
 
         -- determine filename field length and format filename
-        local buffer_width = vim.api.nvim_win_get_width(0)
+        local buffer_width = api.nvim_win_get_width(0)
         local filename_max_length =
             buffer_width - #preLine - #postLine + extra_width
         local filename_str = formatFilename(filename, filename_max_length)
@@ -244,7 +244,7 @@ local function updateBufferFromLsLines(buf, ls_lines)
 end
 
 local function refresh()
-    local buf = vim.api.nvim_get_current_buf()
+    local buf = api.nvim_get_current_buf()
     assert(isJABSPopup(buf))
 
     local ls_result = api.nvim_exec(config.sort_mru and ":ls t" or ":ls", true)
@@ -299,18 +299,18 @@ local function getPreviewConfig(win)
 end
 
 local function openPreview()
-    local buf = getBufferHandleFromLine(vim.api.nvim_get_current_line())
-    local win = vim.api.nvim_get_current_win()
+    local buf = getBufferHandleFromLine(api.nvim_get_current_line())
+    local win = api.nvim_get_current_win()
 
-    local prev_win = vim.api.nvim_open_win(buf, false, getPreviewConfig(win))
+    local prev_win = api.nvim_open_win(buf, false, getPreviewConfig(win))
 
-    vim.api.nvim_win_set_var(prev_win, "isJABSWindow", true)
-    vim.api.nvim_set_current_win(prev_win)
+    api.nvim_win_set_var(prev_win, "isJABSWindow", true)
+    api.nvim_set_current_win(prev_win)
 
     -- close preview when cursor leaves window
     local fn_callback = function() api.nvim_win_close(prev_win, false) end
     local options = {group = "JABSAutoCmds", buffer = buf, callback = fn_callback}
-    vim.api.nvim_create_autocmd({ "WinLeave" }, options)
+    api.nvim_create_autocmd({ "WinLeave" }, options)
 end
 
 local function openSelectedBuffer(opt)
@@ -319,7 +319,7 @@ local function openSelectedBuffer(opt)
     local buf = vim.v.count ~= 0 and vim.v.count or selected_buf
 
     if vim.fn.bufexists(buf) == 0 then
-        print "Buffer number not found!"
+        print("Buffer number not found!")
         return
     end
 
@@ -382,7 +382,7 @@ local function setKeymaps(buf)
     api.nvim_create_autocmd({'WinEnter'}, {group="JABSAutoCmds",
                                            callback = winEnterEvent})
 
-    local win = vim.api.nvim_get_current_win()
+    local win = api.nvim_get_current_win()
     api.nvim_create_autocmd({'WinClosed'}, {pattern=tostring(win),
                                             group="JABSAutoCmds",
                                             callback = cleanUp})
@@ -447,7 +447,7 @@ local function getPopupConfig()
 end
 
 local function open()
-    local current_buf = vim.api.nvim_get_current_buf()
+    local current_buf = api.nvim_get_current_buf()
 
     if isJABSPopup(current_buf) then
         closePopup()
@@ -456,11 +456,11 @@ local function open()
 
     -- init jabs popup buffer
     local buf = api.nvim_create_buf(false, true)
-    vim.api.nvim_buf_set_name(buf, "expJABS")
+    api.nvim_buf_set_name(buf, "expJABS")
     vim.b[buf].isJABSBuffer = true
 
     win = api.nvim_open_win(buf, true, getPopupConfig())
-    vim.api.nvim_win_set_var(win, "isJABSWindow", true)
+    api.nvim_win_set_var(win, "isJABSWindow", true)
     refresh()
     setKeymaps(buf)
 end
