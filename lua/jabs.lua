@@ -51,12 +51,15 @@ local function setup(c)
         h_split = c.keymap.h_split or "s",
         v_split = c.keymap.v_split or "v",
         preview = c.keymap.preview or "P",
+        toggle_unlisted = c.keymap.toggle_unlisted or "u"
     }
 
     -- sort_mru and split_filename
     config.sort_mru = c.sort_mru or false
     config.split_filename = c.split_filename or false
     config.split_filename_path_width = c.split_filename_path_width or 0
+
+    config.show_unlisted = c.show_unlisted or false
 
     -- icon / symbol stuff
     config.default_file_symbol = c.symbols.default_file or ""
@@ -71,6 +74,7 @@ local function setup(c)
         ["#h"] = c.highlight.alternate or "WarningMsg",
         ["#"] = c.highlight.alternate or "WarningMsg",
         ["h"] = c.highlight.hidden or "ModeMsg",
+        ["u"] = c.highlight.unlisted or "ErrorMsg",
     }
 
     -- Buffer info symbols
@@ -143,7 +147,7 @@ local function getFileSymbol(filename)
     return symbol, hl
 end
 
-local function getBufferIcon(flags)
+local function getBufferIcon(flags, unlisted)
     flags = flags ~= '' and flags or 'h'
 
     -- if flags do not end with a or h extract trailing char (-> -, =, +, R, F)
@@ -153,6 +157,8 @@ local function getBufferIcon(flags)
     -- extract '#' or '.*[ah]'
     local hlFlag = string.match(flags, "(.[ah#])")
     hlFlag = hlFlag or flags
+
+    if unlisted then hlFlag = 'u' end
 
     return config.symbols_map[iconFlag], config.highlight_map[hlFlag]
 end
@@ -191,11 +197,20 @@ local function formatFilename(filename, filename_max_length)
     return string.format("%-" .. filename_max_length .. "s", filename)
 end
 
-local function updateBufferFromLsLines(buf, ls_lines)
+local function updateBufferFromLsLines(buf)
+    -- build ls command
+    local ls_cmd = ":ls"
+    if config.show_unlisted then ls_cmd = ls_cmd .. "!" end
+    if config.sort_mru then  ls_cmd = ls_cmd .. " t" end
+    --execute ls command and split by '\n'
+    local ls_result = api.nvim_exec(ls_cmd, true)
+    local ls_lines = iter2array(string.gmatch(ls_result, "([^\n]+)"))
 
-    for i, ls_line in ipairs(ls_lines) do
+
+    local i = 0
+    for _, ls_line in ipairs(ls_lines) do
         -- extract data from ls string
-        local match_cmd = '(%d+)%s+([^%s]*)%s+"(.*)"'
+        local match_cmd = '(%d+)(u?)%s*([^%s]*)%s+"(.*)"'
         if not config.sort_mru then
             match_cmd = match_cmd .. '%s*line%s(%d+)'
         else
@@ -203,15 +218,24 @@ local function updateBufferFromLsLines(buf, ls_lines)
             match_cmd = match_cmd .. '(\n?)'
         end
 
-        local buffer_handle, flags, filename, linenr =
+        local buffer_handle, unlisted, flags, filename, linenr =
             string.match(ls_line, match_cmd)
+
+        -- all "valid unlisted buffer" have no flags set!
+        -- this seams to make the difference to "invalid buffers" (hidden
+        -- buffers from plugins)
+        if unlisted == 'u' and flags ~= '' then
+            goto continue
+        end
+
+        i = i + 1
 
         -- get symbol and icon
         local fn_symbol, fn_symbol_hl = '', nil
         if config.use_devicons then
             fn_symbol, fn_symbol_hl = getFileSymbol(filename)
         end
-        local icon, icon_hl = getBufferIcon(flags)
+        local icon, icon_hl = getBufferIcon(flags, unlisted == 'u')
 
         -- format preLine and postLine
         local preLine =
@@ -240,6 +264,8 @@ local function updateBufferFromLsLines(buf, ls_lines)
             api.nvim_buf_add_highlight(buf, -1, fn_symbol_hl, i, pos,
                                        pos + string.len(fn_symbol))
         end
+
+        ::continue::
     end
 end
 
@@ -247,20 +273,12 @@ local function refresh()
     local buf = vim.api.nvim_get_current_buf()
     assert(isJABSPopup(buf))
 
-    local ls_result = api.nvim_exec(config.sort_mru and ":ls t" or ":ls", true)
-    local ls_lines = iter2array(string.gmatch(ls_result, "([^\n]+)"))
-
     -- init buffer
     api.nvim_buf_set_option(buf, "modifiable", true)
     api.nvim_buf_set_lines(buf, 0, -1, false, {'Open Buffers:'})
     api.nvim_buf_add_highlight(buf, -1, "Folded", 0, 0, -1)
 
-    -- Prevent cursor from going to buffer title
-    vim.cmd(string.format(
-        "au CursorMoved <buffer=%s> if line(\".\") == 1 | call feedkeys('j', 'n') | endif",
-        buf))
-
-    updateBufferFromLsLines(buf, ls_lines)
+    updateBufferFromLsLines(buf)
 
     -- Disable modifiable when done
     api.nvim_buf_set_option(buf, "modifiable", false)
@@ -319,16 +337,16 @@ local function openSelectedBuffer(opt)
     local buf = vim.v.count ~= 0 and vim.v.count or selected_buf
 
     if vim.fn.bufexists(buf) == 0 then
-        print "Buffer number not found!"
+        print("Buffer number not found!")
         return
     end
 
     closePopup()
 
     local openOptions = {
-        window = "b%s",
-        vsplit = "vert sb %s",
-        hsplit = "sb %s",
+        window = "e #%s",
+        vsplit = "vs #%s",
+        hsplit = "sp #%s",
     }
 
     vim.cmd(string.format(openOptions[opt], buf))
@@ -359,6 +377,11 @@ local function setKeymaps(buf)
         end
     end
 
+    local function toggleUnlisted()
+        config.show_unlisted = not config.show_unlisted
+        refresh()
+    end
+
     -- Basic window buffer configuration
     buf_keymap(config.keymap.jump,
                function() openSelectedBuffer("window") end)
@@ -368,6 +391,7 @@ local function setKeymaps(buf)
                function() openSelectedBuffer("vsplit") end)
     buf_keymap(config.keymap.delete, deleteSelectedBuffer)
     buf_keymap(config.keymap.preview, openPreview)
+    buf_keymap(config.keymap.toggle_unlisted, toggleUnlisted)
 
     -- Navigation keymaps
     buf_keymap("q", closePopup)
@@ -454,10 +478,17 @@ local function open()
         return
     end
 
+    config.show_unlisted = false
+
     -- init jabs popup buffer
     local buf = api.nvim_create_buf(false, true)
     vim.api.nvim_buf_set_name(buf, "expJABS")
     vim.b[buf].isJABSBuffer = true
+
+    -- Prevent cursor from going to buffer title
+    vim.cmd(string.format(
+        "au CursorMoved <buffer=%s> if line(\".\") == 1 | call feedkeys('j', 'n') | endif",
+        buf))
 
     win = api.nvim_open_win(buf, true, getPopupConfig())
     vim.api.nvim_win_set_var(win, "isJABSWindow", true)
