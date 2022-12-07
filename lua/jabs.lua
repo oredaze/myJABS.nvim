@@ -109,6 +109,10 @@ local function getBufferHandleFromLine(line)
     return assert(tonumber(handle))
 end
 
+local function isDeletedBuffer(buf)
+    return not vim.bo[buf].buflisted and not vim.api.nvim_buf_is_loaded(buf)
+end
+
 local function closePopup()
     local window_handle = api.nvim_get_current_win()
     assert(vim.w[window_handle].isJABSWindow)
@@ -169,10 +173,10 @@ local function getBufferSymbol(flags)
     local function getHighlight()
         if string.match(flags, '%%') then
             return config.highlight.current
-        elseif string.match(flags, '#') then
-            return config.highlight.alternate
         elseif string.match(flags, 'u') then
             return config.highlight.unlisted
+        elseif string.match(flags, '#') then
+            return config.highlight.alternate
         elseif string.match(flags, 'a') then
             return config.highlight.split
         else
@@ -248,10 +252,9 @@ local function updateBufferFromLsLines(buf)
         local buffer_handle, unlisted, flags, filename, linenr =
             string.match(ls_line, match_cmd)
 
-        -- all "valid unlisted buffer" have no flags set!
-        -- this seams to make the difference to "invalid buffers" (hidden
-        -- buffers from plugins)
-        if unlisted == 'u' and flags ~= '' then
+        -- all "regulare unlisted buffers" are not loaded
+        -- loaded and unlisted buffers are usually hidden plugin buffers
+        if unlisted == 'u' and api.nvim_buf_is_loaded(tonumber(buffer_handle)) then
             goto continue
         end
 
@@ -342,13 +345,23 @@ end
 local function openPreview()
     local buf = getBufferHandleFromLine(api.nvim_get_current_line())
 
+    -- are we previewing a "deleted" buffer? If so we need to delete it
+    -- again when we're done previewing!
+    local deleted_buffer = isDeletedBuffer(buf)
+
     local prev_win = api.nvim_open_win(buf, false, getPreviewConfig())
 
     api.nvim_win_set_var(prev_win, "isJABSWindow", true)
     api.nvim_set_current_win(prev_win)
 
     -- close preview when cursor leaves window
-    local fn_callback = function() api.nvim_win_close(prev_win, false) return true end
+    local fn_callback = function()
+                            api.nvim_win_close(prev_win, false)
+                            if deleted_buffer then
+                                vim.cmd("bd " .. buf)
+                            end
+                            return true
+                        end
     local options = {group = "JABSAutoCmds", buffer = buf, callback = fn_callback}
     api.nvim_create_autocmd({ "WinLeave" }, options)
 end
@@ -367,16 +380,22 @@ local function openSelectedBuffer(opt)
     closePopup()
 
     local openOptions = {
-        window = "e #%s",
-        vsplit = "vs #%s",
-        hsplit = "sp #%s",
+        window = "b%s",
+        vsplit = "vert sb %s",
+        hsplit = "sb %s",
     }
 
+    -- explicitly set the buflisted flag. This "restores" deleted buffers
+    vim.bo[buf].buflisted = true
     vim.cmd(string.format(openOptions[opt], buf))
 end
 
 local function deleteSelectedBuffer()
     local buf = getBufferHandleFromLine(api.nvim_get_current_line())
+
+    if isDeletedBuffer(buf) then
+        return
+    end
 
     -- check if file is open in a window
     local buf_win_id = (table.unpack or unpack)(vim.fn.win_findbuf(buf))
