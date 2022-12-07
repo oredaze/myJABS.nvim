@@ -241,7 +241,7 @@ local function updateBufferFromLsLines(buf)
     local i = 1
     for _, ls_line in ipairs(ls_lines) do
         -- extract data from ls string
-        local match_cmd = '(%d+)(u?)%s*([^%s]*)%s+"(.*)"'
+        local match_cmd = '(%d+)(u?)%s*([^%s]*)%s+%+?%s+"(.*)"'
         if not config.sort_mru then
             match_cmd = match_cmd .. '%s*line%s(%d+)'
         else
@@ -393,7 +393,9 @@ end
 local function deleteSelectedBuffer()
     local buf = getBufferHandleFromLine(api.nvim_get_current_line())
 
-    if isDeletedBuffer(buf) then
+    -- if buffer is already delete or is modified, we can't delete it
+    if isDeletedBuffer(buf) or vim.bo[buf].mod then
+        print("Can't delete already delete or modified buffers!")
         return
     end
 
