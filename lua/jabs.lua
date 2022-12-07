@@ -23,7 +23,7 @@ local function setup(c)
 
     -- main popup window stuff
     config.popup = {
-        position = c.position or {'right', 'bottom'},
+        position = c.position or {'center', 'top'},
         width = c.width or 50,
         height = c.height or 10,
         relative = c.relative or 'win',
@@ -57,27 +57,23 @@ local function setup(c)
     }
 
     -- sort_mru and split_filename
-    config.sort_mru = c.sort_mru or false
+    config.sort_mru = not (c.sort_mru == false)
     config.split_filename = c.split_filename or false
     config.split_filename_path_width = c.split_filename_path_width or 0
 
-    config.show_unlisted = c.show_unlisted or false
-
     -- icon / symbol stuff
-    config.default_file_symbol = c.symbols.default_file or ""
     config.use_devicons = not (c.use_devicons == false)
 
-    -- Highlight names
     config.highlight = {
-        current = c.highlight.current or "StatusLine",
-        split = c.highlight.split or "StatusLine",
-        alternate = c.highlight.alternate or "WarningMsg",
-        hidden = c.highlight.hidden or "ModeMsg",
+        current = c.highlight.current or "Statement",
+        split = c.highlight.split or "Number",
+        alternate = c.highlight.alternate or "String",
+        hidden = c.highlight.hidden or "Normal",
         unlisted = c.highlight.unlisted or "ErrorMsg",
     }
 
-    -- Buffer symbols
     config.symbols = {
+        default = c.symbols.default_file or "",
         current = c.symbols.current or "",
         split = c.symbols.split or "",
         alternate = c.symbols.alternate or "",
@@ -149,7 +145,7 @@ local function getFileSymbol(filename)
         if string.match(filename, '^term://') then
             symbol = config.symbols.terminal
         else
-            symbol = config.default_file_symbol
+            symbol = config.symbols.default
         end
     end
 
@@ -238,13 +234,12 @@ end
 local function getLSResult()
     local function parentWinCall(fn)
         -- execute a command in the parent window
-        local winid = vim.fn.win_getid(vim.fn.winnr("#"))
-        return vim.api.nvim_win_call(winid,fn)
+        return vim.api.nvim_win_call(vim.w.JABSCallerWinId, fn)
     end
 
     -- build ls command
     local ls_cmd = ":ls"
-    if config.show_unlisted then ls_cmd = ls_cmd .. "!" end
+    if vim.w.show_unlisted then ls_cmd = ls_cmd .. "!" end
     if config.sort_mru then  ls_cmd = ls_cmd .. " t" end
 
     --execute ls command and split by '\n'
@@ -331,7 +326,7 @@ local function refresh()
     -- init buffer
     api.nvim_buf_set_option(buf, "modifiable", true)
     api.nvim_buf_set_lines(buf, 0, -1, false, {'Open Buffers:'})
-    api.nvim_buf_add_highlight(buf, -1, "Folded", 0, 0, -1)
+    api.nvim_buf_add_highlight(buf, -1, "Title", 0, 0, -1)
 
     updateBufferFromLsLines(buf)
 
@@ -447,13 +442,14 @@ local function setKeymaps(buf)
     end
 
     local function winEnterEvent()
+        ---@diagnostic disable-next-line: undefined-field
         if vim.w.isJABSWindow ~= true then
             cleanUp()
         end
     end
 
     local function toggleUnlisted()
-        config.show_unlisted = not config.show_unlisted
+        vim.w.show_unlisted = not vim.w.show_unlisted
         refresh()
     end
 
@@ -552,7 +548,7 @@ local function open()
         return
     end
 
-    config.show_unlisted = false
+    local JABSCallerWinId = api.nvim_get_current_win()
 
     -- init jabs popup buffer
     local buf = api.nvim_create_buf(false, true)
@@ -564,8 +560,10 @@ local function open()
         "au CursorMoved <buffer=%s> if line(\".\") == 1 | call feedkeys('j', 'n') | endif",
         buf))
 
-    local win = api.nvim_open_win(buf, true, getPopupConfig())
-    api.nvim_win_set_var(win, "isJABSWindow", true)
+    api.nvim_open_win(buf, true, getPopupConfig())
+    vim.w.isJABSWindow = true
+    vim.w.JABSCallerWinId = JABSCallerWinId
+    vim.w.show_unlisted = false
 
     refresh()
     setKeymaps(buf)
