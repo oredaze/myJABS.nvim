@@ -1,4 +1,6 @@
 local api = vim.api
+---@diagnostic disable-next-line: deprecated
+local unpack = (table.unpack or unpack)
 
 local config = {}
 
@@ -104,7 +106,8 @@ local function isJABSPopup(buf)
     return vim.b[buf].isJABSBuffer == true
 end
 
-local function getBufferHandleFromLine(line)
+local function getBufferHandleFromCurrentLine()
+    local line = api.nvim_get_current_line()
     local handle = string.match(line, "^[^%d]*(%d+)")
     return assert(tonumber(handle))
 end
@@ -140,10 +143,14 @@ local function getFileSymbol(filename)
         return '', nil
     end
 
-    local ext =  string.match(filename, "%.(.*)$")
+    local ext =  string.match(filename, '%.([^%.]*)$')
     local symbol, hl = require("nvim-web-devicons").get_icon(filename, ext)
     if not symbol then
-        symbol = config.default_file_symbol
+        if string.match(filename, '^term://') then
+            symbol = config.symbols.terminal
+        else
+            symbol = config.default_file_symbol
+        end
     end
 
     return symbol, hl
@@ -151,23 +158,26 @@ end
 
 local function getBufferSymbol(flags)
     local function getSymbol()
+        local symbol = ''
         if string.match(flags, '%%') then
-            return config.symbols.current
+            symbol = config.symbols.current
         elseif string.match(flags, '#') then
-            return config.symbols.alternate
+            symbol = config.symbols.alternate
         elseif string.match(flags, 'a') then
-            return config.symbols.split
-        elseif string.match(flags, '[RF]') then
-            return config.symbols.terminal
-        elseif string.match(flags, '-') then
-            return config.symbols.locked
-        elseif string.match(flags, '=') then
-            return config.symbols.ro
-        elseif string.match(flags, '+') then
-            return config.symbols.edited
-        else
-            return config.symbols.hidden
+            symbol = config.symbols.split
         end
+
+        symbol = symbol .. string.rep(' ', 2- getUnicodeStringWidth(symbol))
+
+        if string.match(flags, '-') then
+            symbol = symbol .. config.symbols.locked
+        elseif string.match(flags, '=') then
+            symbol = symbol .. config.symbols.ro
+        elseif string.match(flags, '+') then
+            symbol = symbol .. config.symbols.edited
+        end
+
+        return symbol .. string.rep(' ', 3 - getUnicodeStringWidth(symbol))
     end
 
     local function getHighlight()
@@ -202,6 +212,9 @@ local function formatFilename(filename, filename_max_length)
     end
 
     local function split_filename(fn)
+        if string.match(fn, '^Terminal: ') then
+            return '', fn
+        end
         return string.match(fn, "(.-)([^\\/]-%.?[^%.\\/]*)$")
     end
 
@@ -222,26 +235,30 @@ local function formatFilename(filename, filename_max_length)
     return string.format("%-" .. filename_max_length .. "s", filename)
 end
 
-local function updateBufferFromLsLines(buf)
+local function getLSResult()
+    local function parentWinCall(fn)
+        -- execute a command in the parent window
+        local winid = vim.fn.win_getid(vim.fn.winnr("#"))
+        return vim.api.nvim_win_call(winid,fn)
+    end
+
     -- build ls command
     local ls_cmd = ":ls"
     if config.show_unlisted then ls_cmd = ls_cmd .. "!" end
     if config.sort_mru then  ls_cmd = ls_cmd .. " t" end
 
     --execute ls command and split by '\n'
-    --this is a little tricky, because we need to call the ls command from the
+    --this is a little tricky, we need to call the ls command from the
     --previous window (not the JABS window) to get the right results
-    --that's what this block does using some vim builtin functions
-    local winid = vim.fn.win_getid(vim.fn.winnr("#"))
     local ls_call = function () return api.nvim_exec(ls_cmd, true) end
-    local ls_result = vim.api.nvim_win_call(winid,ls_call)
+    local ls_result = parentWinCall(ls_call)
     local ls_lines = iter2array(string.gmatch(ls_result, "([^\n]+)"))
 
 
-    local i = 1
+    local result = {}
     for _, ls_line in ipairs(ls_lines) do
         -- extract data from ls string
-        local match_cmd = '(%d+)(u?)%s*([^%s]*)%s+%+?%s+"(.*)"'
+        local match_cmd = '(%d+)(.*)"(.*)"'
         if not config.sort_mru then
             match_cmd = match_cmd .. '%s*line%s(%d+)'
         else
@@ -249,23 +266,38 @@ local function updateBufferFromLsLines(buf)
             match_cmd = match_cmd .. '(\n?)'
         end
 
-        local buffer_handle, unlisted, flags, filename, linenr =
+        local buffer_handle_s, flags, filename, linenr_s =
             string.match(ls_line, match_cmd)
+
+        local buffer_handle = assert(tonumber(buffer_handle_s))
+        local linenr = linenr_s == '' and 0 or assert(tonumber(linenr_s))
+        flags = string.gsub(flags, '%s', '')
 
         -- all "regulare unlisted buffers" are not loaded
         -- loaded and unlisted buffers are usually hidden plugin buffers
-        if unlisted == 'u' and api.nvim_buf_is_loaded(tonumber(buffer_handle)) then
-            goto continue
+        local unlisted = string.match(flags, 'u')
+        local loaded = api.nvim_buf_is_loaded(buffer_handle)
+        if not (unlisted and loaded) then
+            table.insert(result, {buffer_handle, flags, filename, linenr})
         end
+    end
+
+    return result
+end
+
+local function updateBufferFromLsLines(buf)
+
+    for _, ls_line in ipairs(getLSResult()) do
+        local buffer_handle, flags, filename, linenr = unpack(ls_line)
 
         -- get file and buffer symbol
         local fn_symbol, fn_symbol_hl = getFileSymbol(filename)
-        local buf_symbol, buf_symbol_hl = getBufferSymbol(flags .. unlisted)
+        local buf_symbol, buf_symbol_hl = getBufferSymbol(flags)
 
         -- format preLine and postLine
         local preLine =
-            string.format(" %s %3d %s ", buf_symbol, buffer_handle, fn_symbol)
-        local postLine = linenr ~= '' and string.format("  %3d ", linenr) or ''
+            string.format("%s %3d %s ", buf_symbol, buffer_handle, fn_symbol)
+        local postLine = linenr ~= 0 and string.format("  %3d ", linenr) or ''
 
         -- determine filename field length and format filename
         local buffer_width = api.nvim_win_get_width(0)
@@ -276,17 +308,16 @@ local function updateBufferFromLsLines(buf)
         -- concat final line for the buffer
         local line = preLine .. filename_str .. postLine
 
-        -- set line and highligh
-        api.nvim_buf_set_lines(buf, i, i, true, { line })
-        api.nvim_buf_add_highlight(buf, -1, buf_symbol_hl, i, 0, -1)
+        -- add line to buffer
+        local new_line = api.nvim_buf_line_count(0)
+        api.nvim_buf_set_lines(buf, -1, -1, true, { line })
+        --apply some highlighting
+        api.nvim_buf_add_highlight(buf, -1, buf_symbol_hl, new_line, 0, -1)
         if fn_symbol_hl and fn_symbol ~= '' then
             local pos = string.find(line, fn_symbol, 1, true)
-            api.nvim_buf_add_highlight(buf, -1, fn_symbol_hl, i, pos,
+            api.nvim_buf_add_highlight(buf, -1, fn_symbol_hl, new_line, pos,
                                        pos + string.len(fn_symbol) - 1)
         end
-
-        i = i + 1
-        ::continue::
     end
 end
 
@@ -343,7 +374,7 @@ local function getPreviewConfig()
 end
 
 local function openPreview()
-    local buf = getBufferHandleFromLine(api.nvim_get_current_line())
+    local buf = getBufferHandleFromCurrentLine()
 
     -- are we previewing a "deleted" buffer? If so we need to delete it
     -- again when we're done previewing!
@@ -369,7 +400,7 @@ end
 local function openSelectedBuffer(opt)
     local buf = vim.v.count
     if buf == 0 then
-        buf = getBufferHandleFromLine(api.nvim_get_current_line())
+        buf = getBufferHandleFromCurrentLine()
     end
 
     if vim.fn.bufexists(buf) == 0 then
@@ -391,7 +422,7 @@ local function openSelectedBuffer(opt)
 end
 
 local function deleteSelectedBuffer()
-    local buf = getBufferHandleFromLine(api.nvim_get_current_line())
+    local buf = getBufferHandleFromCurrentLine()
 
     -- if buffer is already delete or is modified, we can't delete it
     if isDeletedBuffer(buf) or vim.bo[buf].mod then
@@ -400,7 +431,7 @@ local function deleteSelectedBuffer()
     end
 
     -- check if file is open in a window
-    local buf_win_id = (table.unpack or unpack)(vim.fn.win_findbuf(buf))
+    local buf_win_id = unpack(vim.fn.win_findbuf(buf))
     if buf_win_id ~= nil then return end
 
     vim.cmd("bd " .. buf)
@@ -457,7 +488,6 @@ local function setKeymaps(buf)
 end
 
 local function getPopupConfig()
-    local unpack = table.unpack or unpack
     assert(type(config.popup.position) == 'table')
     assert(#config.popup.position == 2)
 
@@ -534,7 +564,7 @@ local function open()
         "au CursorMoved <buffer=%s> if line(\".\") == 1 | call feedkeys('j', 'n') | endif",
         buf))
 
-    win = api.nvim_open_win(buf, true, getPopupConfig())
+    local win = api.nvim_open_win(buf, true, getPopupConfig())
     api.nvim_win_set_var(win, "isJABSWindow", true)
 
     refresh()
