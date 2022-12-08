@@ -31,7 +31,7 @@ This README / doc is updated to expJABS. If you want to know how to handle expJA
 
 JABS shows exactly what you would expect to see with `:buffers` or `:ls`, but in a prettier and interactive way.
 
-![](https://raw.githubusercontent.com/matbme/JABS.nvim/main/screenshots/JABS_demo.gif)
+![](https://raw.githubusercontent.com/jeff-dh/expJABS.nvim/expJABS/screenshots/expJABS.gif)
 
 ## Requirements
 
