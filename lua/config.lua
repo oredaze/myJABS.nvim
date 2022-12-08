@@ -50,7 +50,8 @@ local function setup(c)
         h_split = c.keymap.h_split or "s",
         v_split = c.keymap.v_split or "v",
         preview = c.keymap.preview or "P",
-        toggle_unlisted = c.keymap.toggle_unlisted or "u"
+        toggle_unlisted = c.keymap.toggle_unlisted or "u",
+        switch_to = c.keymap.switch_to or "g",
     }
 
     -- sort_mru and split_filename

@@ -186,6 +186,19 @@ local function deleteSelectedBuffer()
     refresh()
 end
 
+local function switchToSelectedBuffer()
+    local buf = utils.getBufferHandleFromCurrentLine()
+
+    local buf_win_id = unpack(vim.fn.win_findbuf(buf))
+
+    if buf_win_id == nil then
+        print("Can't switch to buffer, no open window found!")
+        return
+    end
+
+    api.nvim_set_current_win(buf_win_id)
+end
+
 local function setKeymaps(buf)
 
     local function buf_keymap(key, fn_callback)
@@ -215,6 +228,8 @@ local function setKeymaps(buf)
                function() openSelectedBuffer("vsplit") end)
     buf_keymap(config.keymap.preview,
                function() preview.open(config.preview) end)
+    buf_keymap(config.keymap.switch_to,
+               function() switchToSelectedBuffer() end)
     buf_keymap('?', function() help.open(config.keymap) end)
     buf_keymap(config.keymap.delete, deleteSelectedBuffer)
     buf_keymap(config.keymap.toggle_unlisted, toggleUnlisted)
