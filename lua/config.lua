@@ -62,10 +62,10 @@ local function setup(c)
     config.use_devicons = not (c.use_devicons == false)
 
     config.highlight = {
-        current = c.highlight.current or "Statement",
-        split = c.highlight.split or "Number",
-        alternate = c.highlight.alternate or "String",
-        hidden = c.highlight.hidden or "Normal",
+        current = c.highlight.current or "Number",
+        split = c.highlight.split or "Statement",
+        alternate = c.highlight.alternate or "Function",
+        hidden = c.highlight.hidden or "String",
         unlisted = c.highlight.unlisted or "ErrorMsg",
     }
 
