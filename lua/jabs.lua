@@ -199,6 +199,9 @@ local function switchToSelectedBuffer()
     local buf_win_id = unpack(vim.fn.win_findbuf(buf))
 
     if buf_win_id ~= nil then
+        -- reset JABSCallerWinId, otherwise the cleanup function will try to
+        -- set the callerWinId as current win.....
+        vim.w.JABSCallerWinId = nil
         api.nvim_set_current_win(buf_win_id)
     else
         openSelectedBuffer('window')
