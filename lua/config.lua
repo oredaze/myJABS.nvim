@@ -37,7 +37,7 @@ local function setup(c)
     config.preview = {
         width = c.preview.width or 70,
         height = c.preview.height or 30,
-        style = c.preview.style or "minimal",
+        style = c.preview.style or nil,
         border = c.preview.border or "double",
         position = c.preview_position or "top",
         relative = "win",
