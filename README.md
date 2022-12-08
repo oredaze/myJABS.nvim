@@ -1,5 +1,29 @@
-# JABS.nvim
+# expJABS
 
+**exp**erimental **JABS** is an experimental branch / fork of JABS. It started
+as a branch to fix a couple of issues and turned into an refactored and
+extended version of JABS. It's backwards compatible and looks and behaves
+(almost) exactly the same as regular JABS.
+
+expJASB differs to regular JABS in the following points:
+
+- aggressively refactored to gain better maintanability and extendibility:
+    - used lua-patterns and vim-api to replace homebrewed solutions
+    - stateless (no global state)
+
+- added features:
+    - sort files by most recently used (merge into JABS/master)
+    - improved positioning (merged into JABS/master)
+    - show closed (unlisted) buffers and restore them
+    - switch to buffers when they are already open
+    - help popup
+
+- fixed some bugs and issues.....
+- changed some default values
+
+This README / doc is updated to expJABS. If you want to know how to handle expJABS, continue reading.
+
+# JABS.nvim
 
 **J**ust **A**nother **B**uffer **S**witcher is a minimal buffer switcher window for Neovim written in Lua.
 
@@ -20,12 +44,15 @@ JABS shows exactly what you would expect to see with `:buffers` or `:ls`, but in
 You can install JABS with your plugin manager of choice. If you use `packer.nvim`, simply add to your plugin list:
 
 ```lua
-use 'matbme/JABS.nvim'
+-- disable regular JABS!!!
+-- use 'matbme/JABS.nvim'
+-- install expJABS
+use {'jeff-dh/expJABS.nvim', branch='expJABS'}
 ```
 
 ## Usage
 
-As previously mentioned, JABS only has one command: `:JABSOpen`, which opens JABS' window.
+As previously mentioned, JABS only has one command: `:JABS`, which opens JABS' window.
 
 By default, you can navigate between buffers with `j` and `k` as well as `<Tab>` and `<S-Tab>`, and jump to a buffer with `<CR>`. When switching buffers the window closes automatically, but it can also be closed with `<Esc>` or `q`.
 
@@ -35,10 +62,12 @@ You can also open a preview window for the buffer selected under the cursor with
 
 All configuration happens within the setup function, which you *must* call inside your `init.lua` file even if you want to stick with the defaut values. Alternatively, you can redefine a number of parameters to tweak JABS to your liking such as the window's size, border, and placement.
 
+expJABS note: you should be able to use any regular JABS config with expJABS. But some default values changed if you want to use the regular JABS configuration values, grab them from here https://github.com/matbme/JABS.nvim#configuration .
+
 A minimal configuration keeping all the defaults would look like this:
 
 ```lua
-require 'jabs'.setup {}
+require('jabs').setup {}
 ```
 
 A more complex config changing every default value would look like this:
@@ -54,7 +83,7 @@ require 'jabs'.setup {
 
     width = 80, -- default 50
     height = 20, -- default 10
-    border = 'single', -- none, single, double, rounded, solid, shadow, (or an array or chars). Default shadow
+    border = 'single', -- none, single, double, rounded, solid, shadow, (or an array or chars). Default single
 
     offset = { -- window position offset
         top = 2, -- default 0
@@ -63,9 +92,10 @@ require 'jabs'.setup {
         right = 2, -- default 0
     },
 
-    sort_mru = true -- Sort buffers by most recently used (true or false). Default false
-    split_filename = true -- Split filename into separate components for name and path. Default false
-    split_filename_path_width = 20 -- If split_filename is true, how wide the column for the path is supposed to be, Default 0 (don't show path)
+    sort_mru = true, -- Sort buffers by most recently used (true or false). Default false
+    split_filename = true, -- Split filename into separate components for name and path. Default false
+    split_filename_path_width = 20, -- If split_filename is true, how wide the column for the path is supposed to be, Default 0 (don't show path)
+    use_devicons = false, -- Whether to use nvim-web-devicons next to filenames. Default true
 
     -- Options for preview window
     preview_position = 'left', -- top, bottom, left, right. Default top
@@ -73,14 +103,17 @@ require 'jabs'.setup {
         width = 40, -- default 70
         height = 60, -- default 30
         border = 'single', -- none, single, double, rounded, solid, shadow, (or an array or chars). Default double
+        style = 'minimal', -- minimal or not existend. Default nil
+        position = 'bottom', -- 'top', 'bottom', 'left', 'right'
     },
 
     -- Default highlights (must be a valid :highlight)
     highlight = {
-        current = "Title", -- default StatusLine
-        hidden = "StatusLineNC", -- default ModeMsg
-        split = "WarningMsg", -- default StatusLine
-        alternate = "StatusLine" -- default WarningMsg
+        current = "Title", -- default Number
+        hidden = "StatusLineNC", -- default Statement
+        split = "WarningMsg", -- default Function
+        alternate = "StatusLine", -- default String
+        unlisted = 'Error', -- default ErrorMsg
     },
 
     -- Default symbols
@@ -103,24 +136,26 @@ require 'jabs'.setup {
         h_split = "h", -- Horizontally split buffer. Default s
         v_split = "v", -- Vertically split buffer. Default v
         preview = "p", -- Open buffer preview. Default P
+        toggle_unlisted = 'U', -- Show closed (unlisted) buffers. Default u
+        switch_to = '<CR>', -- switch to buffer if opened otherwise open it. Default <S-CR>
     },
-
-    -- Whether to use nvim-web-devicons next to filenames
-    use_devicons = false -- true or false. Default true
 }
 ```
 
 ### Default Keymaps
 
-| Key            | Action                          |
-| -------------- | ------------------------------- |
-| j or `<Tab>`   | navigate down                   |
-| k or `<S-Tab>` | navigate up                     |
-| D              | close buffer                    |
-| `<CR>`         | jump to buffer                  |
-| s              | open buffer in horizontal split |
-| v              | open buffer in vertical split   |
-| `<S-p>`        | open preview for buffer         |
+| Key            | Action                                |
+| -------------- | ------------------------------------- |
+| j or `<Tab>`   | navigate down                         |
+| k or `<S-Tab>` | navigate up                           |
+| D              | close buffer                          |
+| `<CR>`         | jump to buffer                        |
+| s              | open buffer in horizontal split       |
+| v              | open buffer in vertical split         |
+| `<S-p>`        | open preview for buffer               |
+| u              | toggle show unlisted (closed) buffers |
+| '<S-CR>'       | switch to buffer or open if not open  |
+| ?              | open help
 
 If you don't feel like manually navigating to the buffer you want to open, you can type its number before `<CR>`, `s`, or `v` to quickly split or switch to it.
 
