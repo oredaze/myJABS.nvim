@@ -5,6 +5,7 @@ local unpack = (table.unpack or unpack)
 local utils = require('utils')
 local config = require('config')
 local preview = require('preview')
+local help = require('help')
 
 local function closePopup()
     local window_handle = api.nvim_get_current_win()
@@ -116,6 +117,14 @@ local function updateBufferFromLsLines(buf)
 end
 
 local function refresh()
+    local function setTitle(buf)
+        local w = api.nvim_win_get_width(0)
+        local h = string.format('%' .. w-1 .. 's', 'press ? for help')
+        api.nvim_buf_set_lines(buf, 0, -1, false, {h})
+        local open = 'Open Buffers:'
+        api.nvim_buf_set_text(buf, 0, 0, 0, #open, {open})
+        api.nvim_buf_add_highlight(buf, -1, "Title", 0, 0, #open)
+    end
     --save cursor position
     local cursor_pos = vim.fn.getpos('.')
 
@@ -124,8 +133,7 @@ local function refresh()
 
     -- init buffer
     api.nvim_buf_set_option(buf, "modifiable", true)
-    api.nvim_buf_set_lines(buf, 0, -1, false, {'Open Buffers:'})
-    api.nvim_buf_add_highlight(buf, -1, "Title", 0, 0, -1)
+    setTitle(buf)
 
     updateBufferFromLsLines(buf)
 
@@ -205,6 +213,7 @@ local function setKeymaps(buf)
                function() openSelectedBuffer("vsplit") end)
     buf_keymap(config.keymap.preview,
                function() preview.open(config.preview) end)
+    buf_keymap('?', function() help.open(config.keymap) end)
     buf_keymap(config.keymap.delete, deleteSelectedBuffer)
     buf_keymap(config.keymap.toggle_unlisted, toggleUnlisted)
 
