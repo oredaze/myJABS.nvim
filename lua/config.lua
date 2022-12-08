@@ -24,7 +24,6 @@ local function setup(c)
         width = c.width or 50,
         height = c.height or 10,
         relative = c.relative or 'win',
-        style = c.style or 'minimal',
         border = c.border or 'single',
         clip_size = not (c.clip_popup_size == false),
 
@@ -40,8 +39,6 @@ local function setup(c)
         style = c.preview.style or nil,
         border = c.preview.border or "double",
         position = c.preview_position or "top",
-        relative = "win",
-        anchor = "NW",
     }
 
     config.keymap = {

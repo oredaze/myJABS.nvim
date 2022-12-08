@@ -308,7 +308,7 @@ local function getPopupConfig()
         height = size_y,
         row = pos_table[relative]["pos_y"][position_y],
         col = pos_table[relative]["pos_x"][position_x],
-        style = config.popup.style,
+        style ='minimal',
         border = config.popup.border,
         anchor = "NW",
         relative = config.popup.relative,
