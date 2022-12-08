@@ -188,15 +188,13 @@ end
 
 local function switchToSelectedBuffer()
     local buf = utils.getBufferHandleFromCurrentLine()
-
     local buf_win_id = unpack(vim.fn.win_findbuf(buf))
 
-    if buf_win_id == nil then
-        print("Can't switch to buffer, no open window found!")
-        return
+    if buf_win_id ~= nil then
+        api.nvim_set_current_win(buf_win_id)
+    else
+        openSelectedBuffer('window')
     end
-
-    api.nvim_set_current_win(buf_win_id)
 end
 
 local function setKeymaps(buf)

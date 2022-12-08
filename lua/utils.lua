@@ -50,10 +50,10 @@ local function getBufferSymbol(flags, symbols, highlight)
         local symbol = ''
         if string.match(flags, '%%') then
             symbol = symbols.current
-        elseif string.match(flags, '#') then
-            symbol = symbols.alternate
         elseif string.match(flags, 'a') then
             symbol = symbols.split
+        elseif string.match(flags, '#') then
+            symbol = symbols.alternate
         end
 
         symbol = symbol .. string.rep(' ', 2- getUnicodeStringWidth(symbol))
@@ -74,10 +74,10 @@ local function getBufferSymbol(flags, symbols, highlight)
             return highlight.current
         elseif string.match(flags, 'u') then
             return highlight.unlisted
-        elseif string.match(flags, '#') then
-            return highlight.alternate
         elseif string.match(flags, 'a') then
             return highlight.split
+        elseif string.match(flags, '#') then
+            return highlight.alternate
         else
             return highlight.hidden
         end

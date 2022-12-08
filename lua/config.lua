@@ -46,12 +46,12 @@ local function setup(c)
 
     config.keymap = {
         delete = c.keymap.close or "D",
-        jump = c.keymap.jump or "<cr>",
+        jump = c.keymap.jump or "<CR>",
         h_split = c.keymap.h_split or "s",
         v_split = c.keymap.v_split or "v",
         preview = c.keymap.preview or "P",
         toggle_unlisted = c.keymap.toggle_unlisted or "u",
-        switch_to = c.keymap.switch_to or "g",
+        switch_to = c.keymap.switch_to or "<S-CR>",
     }
 
     -- sort_mru and split_filename
