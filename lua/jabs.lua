@@ -98,7 +98,9 @@ local function updateBufferFromLsLines(buf)
         local buffer_width = api.nvim_win_get_width(0)
         local filename_max_length =
             buffer_width - utils.getUnicodeStringWidth(preLine .. postLine)
-        local filename_str = utils.formatFilename(filename, filename_max_length)
+        local filename_str = utils.formatFilename(filename, filename_max_length,
+                                                  config.split_filename,
+                                                  config.split_filename_path_width)
 
         -- concat final line for the buffer
         local line = preLine .. filename_str .. postLine
