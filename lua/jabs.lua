@@ -17,8 +17,12 @@ end
 
 local function cleanUp()
     api.nvim_clear_autocmds({group = "JABSAutoCmds"})
+    local callerWinId
     for _, win in ipairs(api.nvim_list_wins()) do
         if vim.w[win].isJABSWindow == true then
+            if vim.w[win].JABSCallerWinId then
+                callerWinId = vim.w[win].JABSCallerWinId
+            end
             api.nvim_win_close(win, false)
         end
     end
@@ -26,6 +30,10 @@ local function cleanUp()
         if vim.b[buf].isJABSBuffer == true then
             api.nvim_buf_delete(buf, {force = false})
         end
+    end
+
+    if callerWinId then
+        api.nvim_set_current_win(callerWinId)
     end
 end
 
