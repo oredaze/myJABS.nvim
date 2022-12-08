@@ -2,115 +2,9 @@ local api = vim.api
 ---@diagnostic disable-next-line: deprecated
 local unpack = (table.unpack or unpack)
 
-local config = {}
-
-local function setup(c)
-    -- create empty default tables for missing config tables
-    c = c or {}
-    c.offset = c.offset or {}
-    c.symbols = c.symbols or {}
-    c.keymap = c.keymap or {}
-    c.preview = c.preview or {}
-    c.highlight = c.highlight or {}
-    c.offset = c.offset or {}
-
-    -- position backwards compatibility
-    if c.position == 'center' then
-        c.position = {'center', 'center'}
-    elseif c.position == 'corner' then
-        c.position = {'right', 'bottom'}
-    end
-
-    -- main popup window stuff
-    config.popup = {
-        position = c.position or {'center', 'top'},
-        width = c.width or 50,
-        height = c.height or 10,
-        relative = c.relative or 'win',
-        style = c.style or 'minimal',
-        border = c.border or 'single',
-        clip_size = not (c.clip_popup_size == false),
-
-        top_offset = c.offset.top or 0,
-        bottom_offset = c.offset.bottom or 0,
-        left_offset = c.offset.left or 0,
-        right_offset = c.offset.right or 0,
-    }
-
-    config.preview = {
-        width = c.preview.width or 70,
-        height = c.preview.height or 30,
-        style = c.preview.style or "minimal",
-        border = c.preview.border or "double",
-        position = c.preview_position or "top",
-        relative = "win",
-        anchor = "NW",
-    }
-
-    config.keymap = {
-        delete = c.keymap.close or "D",
-        jump = c.keymap.jump or "<cr>",
-        h_split = c.keymap.h_split or "s",
-        v_split = c.keymap.v_split or "v",
-        preview = c.keymap.preview or "P",
-        toggle_unlisted = c.keymap.toggle_unlisted or "u"
-    }
-
-    -- sort_mru and split_filename
-    config.sort_mru = not (c.sort_mru == false)
-    config.split_filename = c.split_filename or false
-    config.split_filename_path_width = c.split_filename_path_width or 0
-
-    -- icon / symbol stuff
-    config.use_devicons = not (c.use_devicons == false)
-
-    config.highlight = {
-        current = c.highlight.current or "Statement",
-        split = c.highlight.split or "Number",
-        alternate = c.highlight.alternate or "String",
-        hidden = c.highlight.hidden or "Normal",
-        unlisted = c.highlight.unlisted or "ErrorMsg",
-    }
-
-    config.symbols = {
-        default = c.symbols.default_file or "",
-        current = c.symbols.current or "",
-        split = c.symbols.split or "",
-        alternate = c.symbols.alternate or "",
-        hidden = c.symbols.hidden or "﬘",
-        locked = c.symbols.locked or "",
-        ro = c.symbols.ro or "",
-        edited = c.symbols.edited or "",
-        terminal = c.symbols.terminal or "",
-    }
-end
-
-local function iter2array(...)
-    local arr = {}
-    for v in ... do
-        arr[#arr + 1] = v
-    end
-    return arr
-end
-
-local function getUnicodeStringWidth(str)
-    local extra_width = #str - #string.gsub(str, '[\128-\191]', '')
-    return string.len(str) - extra_width
-end
-
-local function isJABSPopup(buf)
-    return vim.b[buf].isJABSBuffer == true
-end
-
-local function getBufferHandleFromCurrentLine()
-    local line = api.nvim_get_current_line()
-    local handle = string.match(line, "^[^%d]*(%d+)")
-    return assert(tonumber(handle))
-end
-
-local function isDeletedBuffer(buf)
-    return not vim.bo[buf].buflisted and not vim.api.nvim_buf_is_loaded(buf)
-end
+local utils = require('utils')
+local config = require('config')
+local preview = require('preview')
 
 local function closePopup()
     local window_handle = api.nvim_get_current_win()
@@ -134,103 +28,6 @@ local function cleanUp()
     end
 end
 
-local function getFileSymbol(filename)
-    if not config.use_devicons or not pcall(require, "nvim-web-devicons") then
-        return '', nil
-    end
-
-    local ext =  string.match(filename, '%.([^%.]*)$')
-    local symbol, hl = require("nvim-web-devicons").get_icon(filename, ext)
-    if not symbol then
-        if string.match(filename, '^term://') then
-            symbol = config.symbols.terminal
-        else
-            symbol = config.symbols.default
-        end
-    end
-
-    return symbol, hl
-end
-
-local function getBufferSymbol(flags)
-    local function getSymbol()
-        local symbol = ''
-        if string.match(flags, '%%') then
-            symbol = config.symbols.current
-        elseif string.match(flags, '#') then
-            symbol = config.symbols.alternate
-        elseif string.match(flags, 'a') then
-            symbol = config.symbols.split
-        end
-
-        symbol = symbol .. string.rep(' ', 2- getUnicodeStringWidth(symbol))
-
-        if string.match(flags, '-') then
-            symbol = symbol .. config.symbols.locked
-        elseif string.match(flags, '=') then
-            symbol = symbol .. config.symbols.ro
-        elseif string.match(flags, '+') then
-            symbol = symbol .. config.symbols.edited
-        end
-
-        return symbol .. string.rep(' ', 3 - getUnicodeStringWidth(symbol))
-    end
-
-    local function getHighlight()
-        if string.match(flags, '%%') then
-            return config.highlight.current
-        elseif string.match(flags, 'u') then
-            return config.highlight.unlisted
-        elseif string.match(flags, '#') then
-            return config.highlight.alternate
-        elseif string.match(flags, 'a') then
-            return config.highlight.split
-        else
-            return config.highlight.hidden
-        end
-    end
-
-    return getSymbol(), getHighlight()
-end
-
-local function formatFilename(filename, filename_max_length)
-    local function trunc_filename(fn, fn_max)
-        if string.len(fn) <= fn_max then
-            return fn
-        end
-
-        local substr_length = fn_max - string.len("...")
-        if substr_length <= 0 then
-            return string.rep('.', fn_max)
-        end
-
-        return "..." .. string.sub(fn, -substr_length)
-    end
-
-    local function split_filename(fn)
-        if string.match(fn, '^Terminal: ') then
-            return '', fn
-        end
-        return string.match(fn, "(.-)([^\\/]-%.?[^%.\\/]*)$")
-    end
-
-    -- make termial filename nicer
-    filename = string.gsub(filename, "^term://(.*)//.*$", "Terminal: %1", 1)
-
-    if config.split_filename then
-        local path, file = split_filename(filename)
-        local path_width = config.split_filename_path_width
-        local file_width = filename_max_length - config.split_filename_path_width
-        filename = string.format('%-' .. file_width .. "s%-" .. path_width .. "s",
-                    trunc_filename(file, file_width),
-                    trunc_filename(path, path_width))
-    else
-        filename = trunc_filename(filename, filename_max_length)
-    end
-
-    return string.format("%-" .. filename_max_length .. "s", filename)
-end
-
 local function getLSResult()
     local function parentWinCall(fn)
         -- execute a command in the parent window
@@ -247,7 +44,7 @@ local function getLSResult()
     --previous window (not the JABS window) to get the right results
     local ls_call = function () return api.nvim_exec(ls_cmd, true) end
     local ls_result = parentWinCall(ls_call)
-    local ls_lines = iter2array(string.gmatch(ls_result, "([^\n]+)"))
+    local ls_lines = utils.iter2array(string.gmatch(ls_result, "([^\n]+)"))
 
 
     local result = {}
@@ -286,8 +83,10 @@ local function updateBufferFromLsLines(buf)
         local buffer_handle, flags, filename, linenr = unpack(ls_line)
 
         -- get file and buffer symbol
-        local fn_symbol, fn_symbol_hl = getFileSymbol(filename)
-        local buf_symbol, buf_symbol_hl = getBufferSymbol(flags)
+        local fn_symbol, fn_symbol_hl =
+            utils.getFileSymbol(filename, config.use_devicons, config.symbols)
+        local buf_symbol, buf_symbol_hl =
+            utils.getBufferSymbol(flags, config.symbols, config.highlight)
 
         -- format preLine and postLine
         local preLine =
@@ -297,8 +96,8 @@ local function updateBufferFromLsLines(buf)
         -- determine filename field length and format filename
         local buffer_width = api.nvim_win_get_width(0)
         local filename_max_length =
-            buffer_width - getUnicodeStringWidth(preLine .. postLine)
-        local filename_str = formatFilename(filename, filename_max_length)
+            buffer_width - utils.getUnicodeStringWidth(preLine .. postLine)
+        local filename_str = utils.formatFilename(filename, filename_max_length)
 
         -- concat final line for the buffer
         local line = preLine .. filename_str .. postLine
@@ -321,7 +120,7 @@ local function refresh()
     local cursor_pos = vim.fn.getpos('.')
 
     local buf = api.nvim_get_current_buf()
-    assert(isJABSPopup(buf))
+    assert(utils.isJABSPopup(buf))
 
     -- init buffer
     api.nvim_buf_set_option(buf, "modifiable", true)
@@ -336,66 +135,10 @@ local function refresh()
     vim.fn.setpos('.', cursor_pos)
 end
 
-local function getPreviewConfig()
-    local pos_table = {
-        top = {    pos_x = (config.popup.width - config.preview.width) / 2,
-                   pos_y = -config.preview.height - 1 },
-        bottom = { pos_x = (config.popup.width - config.preview.width) / 2,
-                   pos_y = config.popup.height - 1},
-        right = {  pos_x = config.popup.width - 1,
-                   pos_y = (config.popup.height - config.preview.height) / 2},
-        left = {   pos_x = -config.preview.width - 1,
-                   pos_y = (config.popup.height - config.preview.height) / 2 }
-    }
-
-    if config.popup.border == 'none' then
-        pos_table['top']['pos_y'] = pos_table['top']['pos_y'] - 1
-        pos_table['bottom']['pos_y'] = pos_table['bottom']['pos_y'] + 1
-        pos_table['right']['pos_x'] = pos_table['right']['pos_x'] + 1
-        pos_table['left']['pos_x'] = pos_table['left']['pos_x'] - 1
-    end
-
-    return {
-        width = config.preview.width,
-        height = config.preview.height,
-        row = pos_table[config.preview.position]['pos_y'],
-        col = pos_table[config.preview.position]['pos_x'],
-        style = config.preview.style,
-        border = config.preview.border,
-        anchor = "NW",
-        relative = "win",
-        win = api.nvim_get_current_win()
-    }
-end
-
-local function openPreview()
-    local buf = getBufferHandleFromCurrentLine()
-
-    -- are we previewing a "deleted" buffer? If so we need to delete it
-    -- again when we're done previewing!
-    local deleted_buffer = isDeletedBuffer(buf)
-
-    local prev_win = api.nvim_open_win(buf, false, getPreviewConfig())
-
-    api.nvim_win_set_var(prev_win, "isJABSWindow", true)
-    api.nvim_set_current_win(prev_win)
-
-    -- close preview when cursor leaves window
-    local fn_callback = function()
-                            api.nvim_win_close(prev_win, false)
-                            if deleted_buffer then
-                                vim.cmd("bd " .. buf)
-                            end
-                            return true
-                        end
-    local options = {group = "JABSAutoCmds", buffer = buf, callback = fn_callback}
-    api.nvim_create_autocmd({ "WinLeave" }, options)
-end
-
 local function openSelectedBuffer(opt)
     local buf = vim.v.count
     if buf == 0 then
-        buf = getBufferHandleFromCurrentLine()
+        buf = utils.getBufferHandleFromCurrentLine()
     end
 
     if vim.fn.bufexists(buf) == 0 then
@@ -417,10 +160,10 @@ local function openSelectedBuffer(opt)
 end
 
 local function deleteSelectedBuffer()
-    local buf = getBufferHandleFromCurrentLine()
+    local buf = utils.getBufferHandleFromCurrentLine()
 
     -- if buffer is already delete or is modified, we can't delete it
-    if isDeletedBuffer(buf) or vim.bo[buf].mod then
+    if utils.isDeletedBuffer(buf) or vim.bo[buf].mod then
         print("Can't delete already delete or modified buffers!")
         return
     end
@@ -460,8 +203,9 @@ local function setKeymaps(buf)
                function() openSelectedBuffer("hsplit") end)
     buf_keymap(config.keymap.v_split,
                function() openSelectedBuffer("vsplit") end)
+    buf_keymap(config.keymap.preview,
+               function() preview.open(config.preview) end)
     buf_keymap(config.keymap.delete, deleteSelectedBuffer)
-    buf_keymap(config.keymap.preview, openPreview)
     buf_keymap(config.keymap.toggle_unlisted, toggleUnlisted)
 
     -- Navigation keymaps
@@ -543,7 +287,7 @@ end
 local function open()
     local current_buf = api.nvim_get_current_buf()
 
-    if isJABSPopup(current_buf) then
+    if utils.isJABSPopup(current_buf) then
         closePopup()
         return
     end
@@ -569,5 +313,5 @@ local function open()
     setKeymaps(buf)
 end
 
-return { open = open, setup = setup }
+return { open = open, setup = config.setup }
 
