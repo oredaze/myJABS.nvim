@@ -12,10 +12,12 @@ expJASB differs to regular JABS in the following points:
     - stateless (no global state)
 
 - added features:
-    - sort files by most recently used (merge into JABS/master)
-    - improved positioning (merged into JABS/master)
+    - ~~sort files by most recently used (merge into JABS/master)~~
+    - ~~improved positioning (merged into JABS/master)~~
     - show closed (unlisted) buffers and restore them
+    - wipe a buffer is a closed (unlisted) buffer gets deleted again
     - switch to buffers when they are already open
+    - highlight the filename seperately
     - help popup
 
 - fixed some bugs and issues.....
