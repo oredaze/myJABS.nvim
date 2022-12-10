@@ -14,7 +14,8 @@ local function generateHelpText(keymap, width)
     ti(lines, sf('%15s -> Open selected buffer vsplit', keymap.v_split))
     ti(lines, sf('%15s -> Switch to selected buffer or open it', keymap.switch_to))
     ti(lines, sf('%15s -> Preview selected buffer', keymap.preview))
-    ti(lines, sf('%15s -> Delete selected buffer', keymap.delete))
+    ti(lines, sf('%15s -> Delete selected buffer or wipe it if', keymap.delete))
+    ti(lines, sf('%15s    it is already deleted / unlisted', ''))
     ti(lines, sf('%15s -> Toggle show deleted buffers', keymap.toggle_unlisted))
     ti(lines, sf('%15s -> Close JABS main and help window', 'q/<ESC>'))
     ti(lines, sf('%15s -> move up', 'j/<Tab>/up'))
@@ -47,6 +48,7 @@ local function open(keymap)
         border = 'single',
         anchor = "NW",
         relative = "editor",
+        style = 'minimal',
     }
 
     local help_win = api.nvim_open_win(buf, false, cfg)

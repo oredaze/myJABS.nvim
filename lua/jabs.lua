@@ -201,8 +201,8 @@ local function deleteSelectedBuffer()
     local buf = utils.getBufferHandleFromCurrentLine()
 
     -- if buffer is already delete or is modified, we can't delete it
-    if utils.isDeletedBuffer(buf) or vim.bo[buf].mod then
-        print("Can't delete already delete or modified buffers!")
+    if vim.bo[buf].mod then
+        print("Can't delete buffer!")
         return
     end
 
@@ -210,7 +210,11 @@ local function deleteSelectedBuffer()
     local buf_win_id = unpack(vim.fn.win_findbuf(buf))
     if buf_win_id ~= nil then return end
 
-    vim.cmd("bd " .. buf)
+    if not utils.isDeletedBuffer(buf) then
+        vim.cmd("bd " .. buf)
+    else
+        vim.cmd("bw " .. buf)
+    end
     refresh()
 end
 
