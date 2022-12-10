@@ -114,6 +114,7 @@ require 'jabs'.setup {
         split = "WarningMsg", -- default Function
         alternate = "StatusLine", -- default String
         unlisted = 'Error', -- default ErrorMsg
+        filename = 'StatusLine', -- if set highlights the filename. default nil
     },
 
     -- Default symbols

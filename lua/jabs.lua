@@ -118,6 +118,26 @@ local function updateBufferFromLsLines(buf)
         api.nvim_buf_set_lines(buf, -1, -1, true, { line })
         --apply some highlighting
         api.nvim_buf_add_highlight(buf, -1, buf_symbol_hl, new_line, 0, -1)
+
+        -- highligh filename
+        if config.highlight.filename ~= nil then
+            local fn = string.match(filename, '/([^/]*)$')
+            local fn_start, fn_end
+            if not config.split_filename then
+                fn_start, fn_end = string.match(line, '/()' .. fn .. '()[^%/]*$')
+            else
+                fn_start, fn_end = string.match(line, '^[^/]*()' .. fn .. '()')
+            end
+
+            -- there's a special case when split_filename is true and the
+            -- filename itself gets truncated, in that case we simply can't
+            -- find the filename -> fn_start is nil in that case
+            if fn_start ~= nil then
+                api.nvim_buf_add_highlight(buf, -1, config.highlight.filename,
+                                        new_line, fn_start-1, fn_end)
+            end
+        end
+        -- highlight file type symbol
         if fn_symbol_hl and fn_symbol ~= '' then
             local pos = string.find(line, fn_symbol, 1, true)
             api.nvim_buf_add_highlight(buf, -1, fn_symbol_hl, new_line, pos,

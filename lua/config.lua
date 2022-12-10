@@ -65,6 +65,7 @@ local function setup(c)
         alternate = c.highlight.alternate or "Function",
         hidden = c.highlight.hidden or "String",
         unlisted = c.highlight.unlisted or "ErrorMsg",
+        filename = c.highlight.filename or nil
     }
 
     config.symbols = {
