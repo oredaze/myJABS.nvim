@@ -71,7 +71,7 @@ local function getLSResult()
             string.match(ls_line, match_cmd)
 
         local buffer_handle = assert(tonumber(buffer_handle_s))
-        local linenr = linenr_s == '' and 0 or assert(tonumber(linenr_s))
+        local linenr = linenr_s == '' and -1 or assert(tonumber(linenr_s))
         flags = string.gsub(flags, '%s', '')
 
         -- all "regulare unlisted buffers" are not loaded
@@ -100,7 +100,7 @@ local function updateBufferFromLsLines(buf)
         -- format preLine and postLine
         local preLine =
             string.format("%s %3d %s ", buf_symbol, buffer_handle, fn_symbol)
-        local postLine = linenr ~= 0 and string.format("  %3d ", linenr) or ''
+        local postLine = linenr >= 0 and string.format("  %3d ", linenr) or ''
 
         -- determine filename field length and format filename
         local buffer_width = api.nvim_win_get_width(0)
