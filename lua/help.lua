@@ -1,6 +1,6 @@
 local api = vim.api
 
-local function generateHelpText(keymap, width)
+local function generateHelpText(keymap)
     local sf = string.format
     local ti = table.insert
     local lines = {}
@@ -33,7 +33,7 @@ local function open(keymap)
     local buf = api.nvim_create_buf(false, true)
     api.nvim_buf_set_name(buf, "expJABS:Help")
     vim.b[buf].isJABSBuffer = true
-    api.nvim_buf_set_lines(buf, 0, 0, true, generateHelpText(keymap, width))
+    api.nvim_buf_set_lines(buf, 0, 0, true, generateHelpText(keymap))
     api.nvim_buf_set_option(buf, "modifiable", false)
 
     api.nvim_buf_set_keymap(buf, 'n', 'q', ':q<cr>', {nowait = true, silent=true})
