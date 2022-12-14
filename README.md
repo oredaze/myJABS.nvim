@@ -19,6 +19,7 @@ expJASB differs to regular JABS in the following points:
     - switch to buffers when they are already open
     - highlight the filename seperately
     - help popup
+    - mouse support for selecting buffers
 
 - fixed some bugs and issues.....
 - changed some default values

@@ -253,6 +253,8 @@ local function setKeymaps(buf)
     end
 
     -- Basic window buffer configuration
+    buf_keymap('<2-LeftMouse>',
+               function() openSelectedBuffer("window") end)
     buf_keymap(config.keymap.jump,
                function() openSelectedBuffer("window") end)
     buf_keymap(config.keymap.h_split,
