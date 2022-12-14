@@ -105,7 +105,7 @@ local function updateBufferFromLsLines(buf)
         -- determine filename field length and format filename
         local buffer_width = api.nvim_win_get_width(0)
         local filename_max_length =
-            buffer_width - utils.getUnicodeStringWidth(preLine .. postLine)
+            buffer_width - vim.fn.strchars(preLine .. postLine)
         local filename_str = utils.formatFilename(filename, filename_max_length,
                                                   config.split_filename,
                                                   config.split_filename_path_width)
@@ -134,7 +134,7 @@ local function updateBufferFromLsLines(buf)
             -- find the filename -> fn_start is nil in that case
             if fn_start ~= nil then
                 api.nvim_buf_add_highlight(buf, -1, config.highlight.filename,
-                                        new_line, fn_start-1, fn_end)
+                                           new_line, fn_start-1, fn_end)
             end
         end
         -- highlight file type symbol
