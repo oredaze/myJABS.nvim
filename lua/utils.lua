@@ -8,15 +8,9 @@ local function iter2array(...)
     return arr
 end
 
-local function mergeTables(t1, t2)
-    for k, v in pairs(t2) do
-        if (type(v) == "table") and (type(t1[k] or false) == "table") then
-            merge(t1[k], t2[k])
-        else
-            t1[k] = v
-        end
-    end
-    return t1
+local function getUnicodeStringWidth(str)
+    local extra_width = #str - #string.gsub(str, '[\128-\191]', '')
+    return string.len(str) - extra_width
 end
 
 local function isJABSPopup(buf)
@@ -62,7 +56,7 @@ local function getBufferSymbol(flags, symbols, highlight)
             symbol = symbols.alternate
         end
 
-        symbol = symbol .. string.rep(' ', 2- vim.fn.strchars(symbol))
+        symbol = symbol .. string.rep(' ', 2- getUnicodeStringWidth(symbol))
 
         if string.match(flags, '-') then
             symbol = symbol .. symbols.locked
@@ -72,7 +66,7 @@ local function getBufferSymbol(flags, symbols, highlight)
             symbol = symbol .. symbols.edited
         end
 
-        return symbol .. string.rep(' ', 3 - vim.fn.strchars(symbol))
+        return symbol .. string.rep(' ', 3 - getUnicodeStringWidth(symbol))
     end
 
     local function getHighlight()
@@ -134,7 +128,7 @@ end
 
 return {
     iter2array = iter2array,
-    mergeTables = mergeTables,
+    getUnicodeStringWidth = getUnicodeStringWidth,
     isJABSPopup = isJABSPopup,
     getBufferHandleFromCurrentLine = getBufferHandleFromCurrentLine,
     isDeletedBuffer = isDeletedBuffer,
