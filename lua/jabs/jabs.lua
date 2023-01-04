@@ -366,6 +366,9 @@ local function open()
         buf))
 
     api.nvim_open_win(buf, true, getPopupConfig())
+    -- hmm for some reason this line is neccessary to assign
+    -- the right highlighting to a minimal floating win....
+    vim.wo.winhl = 'Normal:Pmenu'
     vim.w.isJABSWindow = true
     vim.w.JABSCallerWinId = JABSCallerWinId
     vim.w.show_unlisted = false
