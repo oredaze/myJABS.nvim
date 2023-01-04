@@ -86,21 +86,30 @@ local function getBufferSymbol(flags, symbols, highlight)
     return getSymbol(), getHighlight()
 end
 
+local function truncFilename(fn, fn_max)
+    if string.len(fn) <= fn_max then
+        return fn
+    end
+
+    local substr_length = fn_max - string.len("...")
+    if substr_length <= 0 then
+        return string.rep('.', fn_max)
+    end
+
+    return "..." .. string.sub(fn, -substr_length)
+end
+
+local function fitIntoWidth(s, width, leftAligned)
+    s = truncFilename(s, width)
+    if leftAligned then
+        return s .. string.rep(' ', width - #s)
+    else
+        return string.rep(' ', width - #s) .. s
+    end
+end
+
 local function formatFilename(filename, filename_max_length,
                               split_filename, split_filename_path_width)
-
-    local function truncFilename(fn, fn_max)
-        if string.len(fn) <= fn_max then
-            return fn
-        end
-
-        local substr_length = fn_max - string.len("...")
-        if substr_length <= 0 then
-            return string.rep('.', fn_max)
-        end
-
-        return "..." .. string.sub(fn, -substr_length)
-    end
 
     local function splitFilename(fn)
         if string.match(fn, '^Terminal: ') then
@@ -116,14 +125,12 @@ local function formatFilename(filename, filename_max_length,
         local path, file = splitFilename(filename)
         local path_width = split_filename_path_width
         local file_width = filename_max_length - split_filename_path_width
-        filename = string.format('%-' .. file_width .. "s%-" .. path_width .. "s",
-                    truncFilename(file, file_width),
-                    truncFilename(path, path_width))
+        filename = fitIntoWidth(file, file_width, true) .. fitIntoWidth(path, path_width, true)
     else
         filename = truncFilename(filename, filename_max_length)
     end
 
-    return string.format("%-" .. filename_max_length .. "s", filename)
+    return fitIntoWidth(filename, filename_max_length, true)
 end
 
 return {
@@ -135,5 +142,6 @@ return {
     getFileSymbol = getFileSymbol,
     getBufferSymbol = getBufferSymbol,
     formatFilename = formatFilename,
+    fitIntoWidth = fitIntoWidth,
     }
 

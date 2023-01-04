@@ -149,7 +149,7 @@ end
 local function refresh()
     local function setTitle(buf)
         local w = api.nvim_win_get_width(0)
-        local h = string.format('%' .. w-1 .. 's', 'press ? for help')
+        local h = utils.fitIntoWidth('press ? for help', w-1, false)
         api.nvim_buf_set_lines(buf, 0, -1, false, {h})
         local open = 'Open Buffers:'
         api.nvim_buf_set_text(buf, 0, 0, 0, #open, {open})
@@ -295,15 +295,15 @@ local function getPopupConfig()
     local position_x, position_y = unpack(config.popup.position)
     local relative = config.popup.relative
 
-    -- determine max width and height
+    -- determine max width and height (-2 -> border)
     local max_width, max_height
     if relative == 'win' then
-        max_width = api.nvim_win_get_width(0)
-        max_height = api.nvim_win_get_height(0)
+        max_width = api.nvim_win_get_width(0) - 2
+        max_height = api.nvim_win_get_height(0) - 2
     elseif relative == 'editor' or relative == 'cursor' then
         local ui = api.nvim_list_uis()[1]
-        max_width = ui.width
-        max_height = ui.height
+        max_width = ui.width - 2
+        max_height = ui.height - 2
     else assert(false)
     end
 
