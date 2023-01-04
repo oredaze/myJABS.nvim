@@ -1,6 +1,6 @@
 local api = vim.api
 
-local utils = require('utils')
+local utils = require('jabs/utils')
 
 local function getPreviewConfig(previewCfg)
     local mainWindowWidth = api.nvim_win_get_width(0)

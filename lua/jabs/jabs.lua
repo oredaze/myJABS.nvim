@@ -2,10 +2,10 @@ local api = vim.api
 ---@diagnostic disable-next-line: deprecated
 local unpack = (table.unpack or unpack)
 
-local utils = require('utils')
-local config = require('config')
-local preview = require('preview')
-local help = require('help')
+local utils = require('jabs/utils')
+local config = require('jabs/config')
+local preview = require('jabs/preview')
+local help = require('jabs/help')
 
 local function closePopup()
     local window_handle = api.nvim_get_current_win()
