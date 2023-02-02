@@ -357,6 +357,7 @@ local function open()
 
     -- init jabs popup buffer
     local buf = api.nvim_create_buf(false, true)
+    vim.bo[buf].filetype = "expJABS"
     api.nvim_buf_set_name(buf, "expJABS")
     vim.b[buf].isJABSBuffer = true
 

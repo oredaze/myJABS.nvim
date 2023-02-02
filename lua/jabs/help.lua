@@ -31,6 +31,7 @@ local function open(keymap)
     local ui = api.nvim_list_uis()[1]
     -- init jabs popup buffer
     local buf = api.nvim_create_buf(false, true)
+    vim.bo[buf].filetype = "expJABS"
     api.nvim_buf_set_name(buf, "expJABS:Help")
     vim.b[buf].isJABSBuffer = true
     api.nvim_buf_set_lines(buf, 0, 0, true, generateHelpText(keymap))
