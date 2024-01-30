@@ -1,9 +1,6 @@
-# expJABS
+# myJABS
 
-**exp**erimental **JABS** is an experimental branch / fork of JABS. It started
-as a branch to fix a couple of issues and turned into an refactored and
-extended version of JABS. It's backwards compatible and looks and behaves
-(almost) exactly the same as regular JABS.
+Fork of expJABS which is a fork of JABS. Adding some personal touches to expJABS.
 
 expJASB differs to regular JABS in the following points:
 
