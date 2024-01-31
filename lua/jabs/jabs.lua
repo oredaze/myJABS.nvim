@@ -35,6 +35,8 @@ local function cleanUp()
     if callerWinId then
         api.nvim_set_current_win(callerWinId)
     end
+
+    config.on_close()
 end
 
 local function getLSResult()
@@ -276,8 +278,8 @@ local function setKeymaps(buf)
     buf_keymap("<Esc>", closePopup)
 
     local options = { nowait = true, noremap = true, silent = true }
-    api.nvim_buf_set_keymap(buf, "n", "<Tab>", "j",options)
-    api.nvim_buf_set_keymap(buf, "n", "<S-Tab>", "k", options)
+    api.nvim_buf_set_keymap(buf, "n", "<Down>", "j",options)
+    api.nvim_buf_set_keymap(buf, "n", "<Up>", "k", options)
 
     -- some auto commands to handle closing JABS
     api.nvim_create_augroup("JABSAutoCmds", {})

@@ -94,7 +94,7 @@ require 'jabs'.setup {
     width = 80, -- default 50
     height = 20, -- default 10
     border = 'single', -- none, single, double, rounded, solid, shadow, (or an array or chars). Default single
-	disable_title = false,
+    disable_title = false,
 
     offset = { -- window position offset
         top = 2, -- default 0
@@ -107,6 +107,8 @@ require 'jabs'.setup {
     split_filename = true, -- Split filename into separate components for name and path. Default false
     split_filename_path_width = 20, -- If split_filename is true, how wide the column for the path is supposed to be, Default 0 (don't show path)
     use_devicons = false, -- Whether to use nvim-web-devicons next to filenames. Default true
+    -- Set a custom function to be used when closing JABS
+    on_close = function() end,
 
     -- Options for preview window
     preview_position = 'left', -- top, bottom, left, right. Default top
@@ -125,8 +127,8 @@ require 'jabs'.setup {
         split = "WarningMsg", -- default Function
         alternate = "StatusLine", -- default String
         unlisted = 'Error', -- default ErrorMsg
-		terminal = "Statement", -- default Function
-		title = "Comment", -- default Title
+        terminal = "Statement", -- default Function
+        title = "Comment", -- default Title
         filename = 'StatusLine', -- if set highlights the filename. default nil
     },
 

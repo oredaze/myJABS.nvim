@@ -56,7 +56,6 @@ local function setup(c)
     config.split_filename = c.split_filename or false
     config.split_filename_path_width = c.split_filename_path_width or 0
 
-    config.show_path = c.show_path or true
     config.disable_title = c.disable_title or false
 
     -- icon / symbol stuff
@@ -85,6 +84,9 @@ local function setup(c)
         edited = c.symbols.edited or "",
         terminal = c.symbols.terminal or "",
     }
+
+    config.on_close = c.on_close or function() end
+
 end
 
 config.setup = setup
