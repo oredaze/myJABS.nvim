@@ -56,15 +56,20 @@ local function setup(c)
     config.split_filename = c.split_filename or false
     config.split_filename_path_width = c.split_filename_path_width or 0
 
+    config.show_path = c.show_path or true
+    config.disable_title = c.disable_title or false
+
     -- icon / symbol stuff
     config.use_devicons = not (c.use_devicons == false)
 
     config.highlight = {
         current = c.highlight.current or "Number",
         split = c.highlight.split or "Statement",
-        alternate = c.highlight.alternate or "Function",
+        alternate = c.highlight.alternate or "Type",
         hidden = c.highlight.hidden or "String",
         unlisted = c.highlight.unlisted or "ErrorMsg",
+        terminal = c.highlight.terminal or "Function",
+        title = c.highlight.title or "Title",
         filename = c.highlight.filename or nil
     }
 
@@ -74,6 +79,7 @@ local function setup(c)
         split = c.symbols.split or "",
         alternate = c.symbols.alternate or "",
         hidden = c.symbols.hidden or "﬘",
+        unlisted = c.symbols.unlisted or "",
         locked = c.symbols.locked or "",
         ro = c.symbols.ro or "",
         edited = c.symbols.edited or "",

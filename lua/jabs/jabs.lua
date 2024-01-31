@@ -61,7 +61,7 @@ local function getLSResult()
         -- extract data from ls string
         local match_cmd = '(%d+)(.*)"(.*)"'
         if not config.sort_mru then
-            match_cmd = match_cmd .. '%s*line%s(%d+)'
+            match_cmd = match_cmd .. '%s*%a+%s(%d+)'
         else
             -- dummy that should never match so we get '' as result for linenr
             match_cmd = match_cmd .. '(\n?)'
@@ -98,8 +98,9 @@ local function updateBufferFromLsLines(buf)
             utils.getBufferSymbol(flags, config.symbols, config.highlight)
 
         -- format preLine and postLine
-        local preLine =
-            string.format("%s %3d %s ", buf_symbol, buffer_handle, fn_symbol)
+        local preLine = string.format(
+            " %s %3d %s ", buf_symbol, buffer_handle, fn_symbol
+        )
         local postLine = linenr >= 0 and string.format("  %3d ", linenr) or ''
 
         -- determine filename field length and format filename
@@ -114,8 +115,8 @@ local function updateBufferFromLsLines(buf)
         local line = preLine .. filename_str .. postLine
 
         -- add line to buffer
-        local new_line = api.nvim_buf_line_count(0)
-        api.nvim_buf_set_lines(buf, -1, -1, true, { line })
+        local new_line = config.disable_title and _ - 1 or _
+        api.nvim_buf_set_lines(buf, new_line, -1, true, { line })
         --apply some highlighting
         api.nvim_buf_add_highlight(buf, -1, buf_symbol_hl, new_line, 0, -1)
 
@@ -148,12 +149,13 @@ end
 
 local function refresh()
     local function setTitle(buf)
+        if config.disable_title then return end
         local w = api.nvim_win_get_width(0)
-        local h = utils.fitIntoWidth('press ? for help', w-1, false)
+        local h = utils.fitIntoWidth('? for help ', w, false)
         api.nvim_buf_set_lines(buf, 0, -1, false, {h})
-        local open = 'Open Buffers:'
+        local open = 'Buffers:'
         api.nvim_buf_set_text(buf, 0, 0, 0, #open, {open})
-        api.nvim_buf_add_highlight(buf, -1, "Title", 0, 0, #open)
+        api.nvim_buf_add_highlight(buf, -1, config.highlight.title, 0, 0, #open)
     end
     --save cursor position
     local cursor_pos = vim.fn.getpos('.')
@@ -357,14 +359,16 @@ local function open()
 
     -- init jabs popup buffer
     local buf = api.nvim_create_buf(false, true)
-    vim.bo[buf].filetype = "expJABS"
-    api.nvim_buf_set_name(buf, "expJABS")
+    vim.bo[buf].filetype = "JABS"
+    api.nvim_buf_set_name(buf, "JABS")
     vim.b[buf].isJABSBuffer = true
 
     -- Prevent cursor from going to buffer title
-    vim.cmd(string.format(
-        "au CursorMoved <buffer=%s> if line(\".\") == 1 | call feedkeys('j', 'n') | endif",
-        buf))
+    if not config.disable_title then
+        vim.cmd(string.format(
+            "au CursorMoved <buffer=%s> if line(\".\") == 1 | call feedkeys('j', 'n') | endif",
+            buf))
+    end
 
     api.nvim_open_win(buf, true, getPopupConfig())
     -- hmm for some reason this line is neccessary to assign

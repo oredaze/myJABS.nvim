@@ -49,6 +49,12 @@ local function getBufferSymbol(flags, symbols, highlight)
             symbol = symbols.split
         elseif string.match(flags, '#') then
             symbol = symbols.alternate
+        elseif string.match(flags, 'R') then
+            symbol = symbols.terminal
+        elseif string.match(flags, 'u') then
+            symbol = symbols.unlisted
+        else
+            symbol = symbols.hidden
         end
 
         symbol = symbol .. string.rep(' ', 2- vim.fn.strchars(symbol))
@@ -69,6 +75,8 @@ local function getBufferSymbol(flags, symbols, highlight)
             return highlight.current
         elseif string.match(flags, 'u') then
             return highlight.unlisted
+        elseif string.match(flags, 'R') then
+            return highlight.terminal
         elseif string.match(flags, 'a') then
             return highlight.split
         elseif string.match(flags, '#') then

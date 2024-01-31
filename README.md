@@ -2,7 +2,17 @@
 
 Fork of expJABS which is a fork of JABS. Adding some personal touches to expJABS.
 
-expJASB differs to regular JABS in the following points:
+myJABS differs to expJABS in the following (minor) points:
+
+- added icon for unlisted buffers
+- fixed missing terminal buffer icon
+- reverted filetype back to JABS (to avoid redoing your settings if you used mainline)
+- added highlight group setting for the title
+- added highlight group setting for terminal buffers
+- added blank column at the start to avoid cursor overlapping icons
+- minor cosmetic tweaks
+
+expJABS differs to regular JABS in the following points:
 
 - aggressively refactored to gain better maintanability and extendibility:
     - used lua-patterns and vim-api to replace homebrewed solutions
@@ -84,6 +94,7 @@ require 'jabs'.setup {
     width = 80, -- default 50
     height = 20, -- default 10
     border = 'single', -- none, single, double, rounded, solid, shadow, (or an array or chars). Default single
+	disable_title = false,
 
     offset = { -- window position offset
         top = 2, -- default 0
@@ -114,6 +125,8 @@ require 'jabs'.setup {
         split = "WarningMsg", -- default Function
         alternate = "StatusLine", -- default String
         unlisted = 'Error', -- default ErrorMsg
+		terminal = "Statement", -- default Function
+		title = "Comment", -- default Title
         filename = 'StatusLine', -- if set highlights the filename. default nil
     },
 
@@ -123,6 +136,7 @@ require 'jabs'.setup {
         split = "S", -- default 
         alternate = "A", -- default 
         hidden = "H", -- default ﬘
+        unlisted = "U", -- default 
         locked = "L", -- default 
         ro = "R", -- default 
         edited = "E", -- default 
